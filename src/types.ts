@@ -2,52 +2,76 @@ export interface UserProfile {
   name: string;
   xp: number;
   level: number;
-  streak: number;
+  coins: number;
+  streak: number; // study streak
   lastActiveDate: string; // YYYY-MM-DD
   isPro: boolean;
+}
+
+export interface AcademicSubject {
+  id: string;
+  title: string;
+  level: 'High School' | 'Undergraduate' | 'Postgraduate' | 'Ph.D. Scholar';
+  difficulty: 'Hard' | 'Medium' | 'Easy';
+  chapters: string[];
+  remainingLessons: number;
+  importantTopics: string[];
+  previousMarks: number;
+  confidenceLevel: number; // 0 to 100
+  dailyStudyHours: number;
+  examDate?: string;
+  syllabusCompletionPercent: number; // 0 to 100
 }
 
 export interface StudyPlan {
   id: string;
   subject: string;
-  targetDate: string;
-  durationWeeks: number;
-  createdAt: string;
+  level: string;
+  overview: string;
+  proTip: string;
   milestones: StudyMilestone[];
+  createdAt: string;
   progress: number; // 0 to 100
+  assessmentData?: any;
+  assessmentResult?: {
+    daysRemaining: number;
+    completionPercent: number;
+    difficultyScore: number;
+    weaknessScore: number;
+    confidenceScore: number;
+    revisionRequirement: string;
+    readinessScore: number;
+    riskScore: string;
+    dailyStudyPlan: string;
+    weeklyStudyPlan: string;
+    monthlyStudyPlan: string;
+    revisionSchedule: string;
+    examCrisisPlan: string;
+    priorityTopics: string[];
+    aiRecommendations: string[];
+  };
 }
 
 export interface StudyMilestone {
-  id: string;
+  week: string;
   title: string;
-  description: string;
-  completed: boolean;
-  tasks: StudyTask[];
-}
-
-export interface StudyTask {
-  id: string;
-  title: string;
-  durationMinutes: number;
-  completed: boolean;
-  aiSuggestedQuizId?: string;
+  topics: string[];
+  estimatedHours: number;
+  quizAvailable: boolean;
+  completed?: boolean;
 }
 
 export interface Flashcard {
-  id: string;
+  id: number;
   front: string;
   back: string;
-  subject: string;
-  nextReviewDate: string; // ISO string
-  intervalDays: number; // For spaced repetition
-  easeFactor: number;
 }
 
 export interface QuizQuestion {
-  id: string;
+  id: number;
   question: string;
   options: string[];
-  correctAnswer: number; // Index 0-3
+  correctAnswerIndex: number;
   explanation: string;
 }
 
@@ -73,7 +97,7 @@ export interface Achievement {
   title: string;
   description: string;
   xpReward: number;
-  category: 'focus' | 'quiz' | 'planner' | 'streak' | 'general';
+  category: 'focus' | 'quiz' | 'planner' | 'streak' | 'general' | 'prayer' | 'wakeup';
   targetValue: number;
   unlocked: boolean;
   unlockedAt?: string;
@@ -84,4 +108,71 @@ export interface CoachMessage {
   sender: 'user' | 'coach';
   text: string;
   timestamp: string; // ISO string
+}
+
+export interface PdfFile {
+  id: string;
+  subjectId: string;
+  name: string;
+  uploadDate: string;
+  totalPages: number;
+  currentPage: number;
+  readingTime: number; // minutes
+  lastOpened?: string;
+  dataUrl?: string; // base64 or inline data
+}
+
+export interface GalleryImage {
+  id: string;
+  subjectId: string;
+  chapter: string;
+  title: string;
+  dataUrl: string; // base64
+  uploadDate: string;
+}
+
+export interface PrayerDay {
+  date: string; // YYYY-MM-DD
+  prayers: {
+    fajr: boolean;
+    dhuhr: boolean;
+    asr: boolean;
+    maghrib: boolean;
+    isha: boolean;
+  };
+}
+
+export interface WakeUpLog {
+  date: string; // YYYY-MM-DD
+  wakeTime: string; // HH:MM
+  sleepTime: string; // HH:MM
+  isEarlyWakeUp: boolean;
+}
+
+export interface Goal {
+  id: string;
+  title: string;
+  targetDate: string;
+  completed: boolean;
+  xpReward: number;
+}
+
+export interface UserNote {
+  id: string;
+  subjectId: string;
+  title: string;
+  content: string;
+  lastUpdated: string;
+}
+
+export interface Quest {
+  id: string;
+  title: string;
+  type: 'daily' | 'weekly';
+  completed: boolean;
+  xpReward: number;
+  coinsReward: number;
+  targetType: 'study_session' | 'prayer_check' | 'quiz_completion' | 'pdf_read' | 'early_wakeup';
+  currentValue: number;
+  targetValue: number;
 }
