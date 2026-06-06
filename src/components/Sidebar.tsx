@@ -68,44 +68,44 @@ export default function Sidebar({
     <>
       {/* DESKTOP GLASSMORPHISM SIDEBAR */}
       <aside 
-        className={`hidden md:flex flex-col h-screen shrink-0 border-r border-white/5 bg-[#09090b]/95 backdrop-blur-3xl transition-all duration-300 relative z-30 ${
+        className={`hidden md:flex flex-col h-screen shrink-0 border-r border-white/5 bg-[#070914]/98 backdrop-blur-3xl transition-all duration-300 relative z-30 shadow-[4px_0_24px_rgba(0,0,0,0.5)] ${
           collapsed ? 'w-20' : 'w-64'
         }`}
       >
         {/* Toggle Collapse */}
         <button 
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute -right-3 top-6 w-6 h-6 rounded-full bg-[#121214] border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all cursor-pointer shadow-[0_0_10px_rgba(6,182,212,0.15)]"
+          className="absolute -right-3 top-6 w-6 h-6 rounded-full bg-[#0d0f1e] border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:border-cyan-500/50 transition-all cursor-pointer shadow-[0_0_12px_rgba(6,182,212,0.25)]"
         >
           {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
 
         {/* Logo and title */}
         <div className={`p-6 flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="w-8 h-8 rounded-xl bg-[#0e0e11] border border-white/10 flex items-center justify-center shrink-0 shadow-lg group-hover:border-cyan-500/35 transition-all">
-            <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/10">
+            <Sparkles className="w-4 h-4 text-white animate-pulse" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
               <span className="text-sm font-black tracking-tight text-white uppercase leading-none font-display">
                 StudyForge <span className="text-cyan-400 font-mono">AI</span>
               </span>
-              <span className="text-[8px] font-bold text-zinc-500 tracking-widest mt-0.5">STUDIO PRESTIGE</span>
+              <span className="text-[8px] font-bold text-indigo-400 tracking-widest mt-0.5 uppercase">Elite Coach</span>
             </div>
           )}
         </div>
 
         {/* Level badge widget container */}
         {!collapsed && (
-          <div className="mx-4 p-3.5 bg-zinc-950/40 rounded-2xl border border-white/5 space-y-2 mb-4">
+          <div className="mx-4 p-3.5 bg-[#0d1024]/60 rounded-2xl border border-indigo-500/10 space-y-2 mb-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.02)]">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-500 p-[1.5px] shrink-0">
-                <div className="w-full h-full rounded-full bg-[#09090b] flex items-center justify-center font-black text-[11px] text-white">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-400 via-indigo-400 to-purple-500 p-[1.5px] shrink-0">
+                <div className="w-full h-full rounded-full bg-[#070914] flex items-center justify-center font-black text-[11px] text-white">
                   {getLevel(xp)}
                 </div>
               </div>
               <div className="min-w-0">
-                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Scholar Prestige</p>
+                <p className="text-[9px] uppercase font-bold text-indigo-300 tracking-wider">Scholar Prestige</p>
                 <p className="text-xs font-semibold text-slate-200 truncate">{profile.name || "Alex"}</p>
               </div>
             </div>
@@ -113,45 +113,58 @@ export default function Sidebar({
             <div className="space-y-1">
               <div className="flex justify-between text-[8px] text-slate-400 font-mono">
                 <span>LVL {getLevel(xp)}</span>
-                <span>{xp % 500} / 500 XP</span>
+                <span className="text-indigo-300 font-bold">{xp % 500} / 500 XP</span>
               </div>
               <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
+                <div className="h-full bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-500 rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }}></div>
               </div>
             </div>
           </div>
         )}
 
         {/* Scrolly lists of link locations */}
-        <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-4 no-scrollbar">
           {/* Group categories together */}
           {['Main', 'Syllabus', 'Focus', 'Stats', 'Wellness', 'System'].map((catName) => {
             const items = SECTIONS.filter(s => s.category === catName);
             return (
               <div key={catName} className="space-y-1">
                 {!collapsed && (
-                  <span className="text-[9px] uppercase font-bold tracking-widest text-[#64748b] block px-2 mb-1.5 font-mono">{catName}</span>
+                  <span className="text-[9px] uppercase font-bold tracking-widest text-indigo-400/60 block px-2.5 mb-1.5 font-mono">{catName}</span>
                 )}
                 {items.map((sec) => {
                   const SecIcon = sec.icon;
                   const isActive = currentTab === sec.id;
+                  
+                  // Adaptive color mapping for maximum user psychological resonance
+                  let activeClass = 'bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 font-bold shadow-[0_0_15px_rgba(6,182,212,0.15)]';
+                  if (sec.id === 'coach') {
+                    activeClass = 'bg-purple-500/10 border border-purple-400/20 text-purple-300 font-bold shadow-[0_0_15px_rgba(168,85,247,0.2)]';
+                  } else if (sec.id === 'streaks_display' || sec.id === 'achievements') {
+                    activeClass = 'bg-amber-500/10 border border-amber-400/20 text-amber-300 font-bold shadow-[0_0_15px_rgba(245,158,11,0.2)]';
+                  } else if (sec.id === 'wakeup' || sec.id === 'prayer') {
+                    activeClass = 'bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 font-bold shadow-[0_0_15px_rgba(99,102,241,0.2)]';
+                  } else if (sec.id === 'focus') {
+                    activeClass = 'bg-emerald-500/10 border border-emerald-400/20 text-emerald-300 font-bold shadow-[0_0_15px_rgba(16,185,129,0.2)]';
+                  }
+
                   return (
                     <button
                       key={sec.id}
                       onClick={() => handleTabClick(sec.id)}
-                      className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-left transition-all relative ${
+                      className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left transition-all duration-200 relative ${
                         isActive
-                          ? 'bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 font-bold shadow-[0_0_15px_rgba(6,182,212,0.1)]'
+                          ? activeClass
                           : 'text-slate-400 hover:text-white hover:bg-white/[0.03] border border-transparent'
                       }`}
                       title={sec.label}
                     >
-                      <SecIcon className="w-4 h-4 shrink-0" />
+                      <SecIcon className={`w-4 h-4 shrink-0 transition-transform ${isActive ? 'scale-110' : ''}`} />
                       {!collapsed && (
                         <span className="text-xs tracking-wide">{sec.label}</span>
                       )}
                       {!collapsed && sec.badge && (
-                        <span className="ml-auto text-[8px] uppercase font-black tracking-widest px-1.5 py-0.5 bg-cyan-400/10 border border-cyan-400/20 text-cyan-400 rounded-md">
+                        <span className="ml-auto text-[8px] uppercase font-black tracking-widest px-1.5 py-0.5 bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 rounded-md">
                           {sec.badge}
                         </span>
                       )}

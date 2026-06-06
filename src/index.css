@@ -9,7 +9,8 @@
 
 @layer base {
   body {
-    background-color: #030303;
+    background-color: #070913;
     font-family: var(--font-sans);
+    color: #f1f5f9;
   }
 }

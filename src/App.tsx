@@ -27,6 +27,8 @@ import TopicGallery from "./components/TopicGallery";
 import SmartPriority from "./components/SmartPriority";
 import DopamineCentrals from "./components/DopamineCentrals";
 import AnalyticsPanel from "./components/AnalyticsPanel";
+import SplashAndLoading from "./components/SplashAndLoading";
+import { motion, AnimatePresence } from "motion/react";
 
 // Web Audio synthesizer for ambient neuro-focus beats
 class AmbientSynth {
@@ -164,8 +166,45 @@ const renderMarkdownContent = (text: string) => {
   );
 };
 
+// Framer Motion entrance & stagger animation variants
+const appContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.15
+    }
+  }
+};
+
+const appItemVariants = {
+  hidden: { y: 15, opacity: 0 },
+  visible: { 
+    y: 0, 
+    opacity: 1,
+    transition: { duration: 0.55, ease: "easeOut" }
+  }
+};
+
 export default function App() {
   // --- Persistent User Profile state ---
+  const [isInitialLoading, setIsInitialLoading] = useState(() => {
+    if (typeof window !== "undefined") {
+      const loadedRecently = sessionStorage.getItem("sf_loaded_recently");
+      if (loadedRecently === "true") {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (isInitialLoading) {
+      sessionStorage.setItem("sf_loaded_recently", "true");
+    }
+  }, [isInitialLoading]);
+
   const [xp, setXp] = useState(() => {
     const saved = localStorage.getItem("sf_xp");
     return saved ? parseInt(saved, 10) : 0;
@@ -507,18 +546,71 @@ export default function App() {
 
   // --- Student Assessment States ---
   const [assessmentStep, setAssessmentStep] = useState(1);
-  const [showNewAssessment, setShowNewAssessment] = useState(true);
+  const [showNewAssessment, setShowNewAssessment] = useState(() => {
+    const saved = localStorage.getItem("sf_plans_v2");
+    return !saved || JSON.parse(saved).length === 0;
+  });
   const [selectedPlanDetail, setSelectedPlanDetail] = useState<StudyPlan | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<
     "dailyPlan" | "weeklyPlan" | "monthlyPlan" | "revisionSchedule" | "examCrisis" | "priorityTopics" | "aiRecommendations"
   >("dailyPlan");
 
+  const [subjectsList, setSubjectsList] = useState<any[]>(() => {
+    const saved = localStorage.getItem("sf_planner_subjects");
+    return saved ? JSON.parse(saved) : [
+      {
+        name: "Mathematics",
+        examDate: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+        totalChapters: 12,
+        completedChapters: 4,
+        importantChapters: "Algebra, Integration Foundations",
+        difficultyLevel: "Hard",
+        confidenceLevel: 4,
+        previousMarks: 65,
+        desiredDailyHours: 3,
+        notes: "Focus heavily on practicing integration rules."
+      },
+      {
+        name: "Chemistry",
+        examDate: new Date(Date.now() + 25 * 86400000).toISOString().split('T')[0],
+        totalChapters: 10,
+        completedChapters: 6,
+        importantChapters: "Organic chemistry equations, Periodic table properties",
+        difficultyLevel: "Medium",
+        confidenceLevel: 7,
+        previousMarks: 82,
+        desiredDailyHours: 2,
+        notes: "Memorize nomenclature schemas."
+      }
+    ];
+  });
+
+  const [routineData, setRoutineData] = useState(() => {
+    const saved = localStorage.getItem("sf_planner_routine");
+    return saved ? JSON.parse(saved) : {
+      wakeUpTime: "05:00",
+      sleepTime: "22:00",
+      breakfastStart: "08:00",
+      breakfastEnd: "08:30",
+      lunchStart: "13:00",
+      lunchEnd: "14:00",
+      dinnerStart: "20:00",
+      dinnerEnd: "21:00",
+      fajrTime: "04:30",
+      dhuhrTime: "12:30",
+      asrTime: "16:00",
+      maghribTime: "19:00",
+      ishaTime: "20:30"
+    };
+  });
+
+  // Keep for backward compatibility
   const [assessmentData, setAssessmentData] = useState({
-    course: "",
-    subjects: "",
-    hardestSubject: "",
-    easiestSubject: "",
-    startDate: "",
+    course: "General Standard",
+    subjects: "Science & Arts",
+    hardestSubject: "Physics",
+    easiestSubject: "English",
+    startDate: "2026-06-20",
     endDate: "",
     studyHolidays: 2,
     examType: "Semester Exams",
@@ -542,25 +634,85 @@ export default function App() {
     imagesUploadedCount: 0,
   });
 
+  useEffect(() => {
+    localStorage.setItem("sf_planner_subjects", JSON.stringify(subjectsList));
+  }, [subjectsList]);
+
+  useEffect(() => {
+    localStorage.setItem("sf_planner_routine", JSON.stringify(routineData));
+  }, [routineData]);
+
+  // Client calculations for priority and risk
+  const calculateSubjectPriorityScore = (sub: any) => {
+    let score = 0;
+    // Difficulty points: Hard=15, Medium=8, Easy=2
+    if (sub.difficultyLevel === "Hard") score += 15;
+    else if (sub.difficultyLevel === "Medium") score += 8;
+    else score += 2;
+
+    // Low Confidence score: (10 - Confidence Level) * 2
+    score += (10 - (sub.confidenceLevel || 5)) * 2;
+
+    // Low Marks points: (100 - previous marks) * 0.2
+    score += (100 - (sub.previousMarks || 0)) * 0.2;
+
+    // Remaining Chapters points: (Total Chapters - Completed Chapters) * 1.5
+    const remaining = Math.max(0, (sub.totalChapters || 0) - (sub.completedChapters || 0));
+    score += remaining * 1.5;
+
+    // Exam Urgency points
+    const daysRem = sub.examDate ? Math.max(0, Math.ceil((new Date(sub.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+    if (daysRem <= 10) score += 25;
+    else if (daysRem <= 20) score += 15;
+    else if (daysRem <= 30) score += 8;
+    else score += 2;
+
+    // Important topics bonus
+    if (sub.importantChapters && sub.importantChapters.trim().length > 0) {
+      score += 5;
+    }
+
+    return parseFloat(score.toFixed(1));
+  };
+
+  const getSubjectRiskStatus = (sub: any) => {
+    const daysRem = sub.examDate ? Math.max(0, Math.ceil((new Date(sub.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+    const total = Math.max(1, sub.totalChapters || 1);
+    const completed = sub.completedChapters || 0;
+    const incompletePct = Math.round(((total - completed) / total) * 100);
+
+    if (daysRem < 14 && incompletePct > 40) {
+      return { status: "high", label: "High Risk 🔴", isCrisis: true };
+    } else if (daysRem < 30 && incompletePct > 20) {
+      return { status: "moderate", label: "Moderate 🟡", isCrisis: false };
+    } else {
+      return { status: "safe", label: "Safe 🟢", isCrisis: false };
+    }
+  };
+
   const handleGenerateAssessmentPlan = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!assessmentData.course.trim()) {
-      showToast("⚠️ Please enter your current course/class/standard details!");
+    if (subjectsList.length === 0) {
+      showToast("⚠️ Please add at least one subject to build a plan!");
       return;
     }
-    if (!assessmentData.subjects.trim()) {
-      showToast("⚠️ Please specify the subjects being studied!");
-      return;
-    }
-    if (!assessmentData.startDate) {
-      showToast("⚠️ Please select an Exam Start Date!");
-      return;
+
+    // Core validation
+    for (const sub of subjectsList) {
+      if (!sub.name.trim()) {
+        showToast("⚠️ Subject Name is required for all added subjects.");
+        return;
+      }
+      if (!sub.examDate) {
+        showToast(`⚠️ Please enter an Exam Date for ${sub.name}.`);
+        return;
+      }
     }
 
     setIsGeneratingPlan(true);
     try {
-      console.log("Submitting student assessment pay-load:", assessmentData);
+      console.log("Submitting dynamic student array pay-load:", { subjectsList, routineData });
       
       const response = await fetch("/api/gemini/generate", {
         method: "POST",
@@ -568,94 +720,108 @@ export default function App() {
         body: JSON.stringify({
           type: "assessment_study_plan",
           payload: {
-            academicDetails: {
-              course: assessmentData.course,
-              subjects: assessmentData.subjects,
-              hardestSubject: assessmentData.hardestSubject,
-              easiestSubject: assessmentData.easiestSubject
-            },
-            examDetails: {
-              startDate: assessmentData.startDate,
-              endDate: assessmentData.endDate,
-              studyHolidays: assessmentData.studyHolidays,
-              examType: assessmentData.examType
-            },
-            syllabusDetails: {
-              chaptersTotal: assessmentData.chaptersTotal,
-              chaptersCompleted: assessmentData.chaptersCompleted,
-              importantChapters: assessmentData.importantChapters,
-              highMarksChapters: assessmentData.highMarksChapters
-            },
-            performanceAnalysis: {
-              previousMarks: assessmentData.previousMarks,
-              confidenceLevel: assessmentData.confidenceLevel,
-              struggleTopics: assessmentData.struggleTopics,
-              masteredTopics: assessmentData.masteredTopics
-            },
-            timeManagement: {
-              dailyHours: assessmentData.dailyHours,
-              preferredTime: assessmentData.preferredTime,
-              maxFocusDuration: assessmentData.maxFocusDuration,
-              breakPreference: assessmentData.breakPreference
-            },
-            routineDetails: {
-              wakeUpTime: assessmentData.wakeUpTime,
-              sleepTime: assessmentData.sleepTime,
-              prayerEnabled: assessmentData.prayerEnabled
-            },
-            resources: {
-              pdfsUploadedCount: assessmentData.pdfsUploadedCount,
-              notesUploadedCount: assessmentData.notesUploadedCount,
-              imagesUploadedCount: assessmentData.imagesUploadedCount
-            }
+            subjectsList: subjectsList.map(sub => {
+              const daysRem = sub.examDate ? Math.max(0, Math.ceil((new Date(sub.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+              return {
+                ...sub,
+                daysRemaining: daysRem
+              };
+            }),
+            routine: routineData
           }
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Unable to parse interactive assessment milestones.");
+        throw new Error("Unable to contact AI Study Service.");
       }
 
       const freshResult = await response.json();
       
-      // Compute client-side fallback metrics if AI analysis omitted them
+      // Calculate overall stats
+      const totalChapters = subjectsList.reduce((acc, s) => acc + (s.totalChapters || 0), 0);
+      const completedChapters = subjectsList.reduce((acc, s) => acc + (s.completedChapters || 0), 0);
+      const syllabusCompletionPct = totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
+      
+      const overallShortestCountdown = subjectsList.reduce((min, s) => {
+        const days = s.examDate ? Math.max(0, Math.ceil((new Date(s.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+        return min === null || days < min ? days : min;
+      }, null as number | null) || 15;
+
       const clientReadinessScore = Math.max(10, Math.min(100, Math.round(
-        (Math.round((assessmentData.chaptersCompleted / Math.max(1, assessmentData.chaptersTotal)) * 100) * 0.4) +
-        (assessmentData.confidenceLevel * 4.0) +
-        ((assessmentData.previousMarks || 0) * 0.2)
+        (syllabusCompletionPct * 0.4) +
+        (subjectsList.reduce((acc, s) => acc + (s.confidenceLevel || 5), 0) / Math.max(1, subjectsList.length) * 4.0) +
+        (subjectsList.reduce((acc, s) => acc + (s.previousMarks || 75), 0) / Math.max(1, subjectsList.length) * 0.2)
       )));
-      const clientRiskLevel = clientReadinessScore >= 75 ? "safe" : clientReadinessScore >= 55 ? "moderate" : "high";
 
       const calculatedM = freshResult.calculatedMetrics || {
-        daysRemaining: Math.max(0, Math.ceil((new Date(assessmentData.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))),
-        syllabusCompletionPercent: Math.round((assessmentData.chaptersCompleted / Math.max(1, assessmentData.chaptersTotal)) * 100),
-        subjectDifficultyScore: Math.max(1, 10 - assessmentData.confidenceLevel),
-        weaknessScore: Math.round(((100 - (assessmentData.previousMarks || 0)) / 20) + (10 - assessmentData.confidenceLevel) * 0.5),
-        confidenceScore: assessmentData.confidenceLevel,
-        revisionRequirement: "Comprehensive active recall spaced intervals recommended.",
+        daysRemaining: overallShortestCountdown,
+        syllabusCompletionPercent: syllabusCompletionPct,
+        subjectDifficultyScore: Math.round(subjectsList.reduce((acc, s) => acc + (s.difficultyLevel === "Hard" ? 9 : s.difficultyLevel === "Medium" ? 6 : 3), 0) / Math.max(1, subjectsList.length)),
+        weaknessScore: Math.round(10 - (subjectsList.reduce((acc, s) => acc + (s.confidenceLevel || 5), 0) / Math.max(1, subjectsList.length))),
+        confidenceScore: Math.round(subjectsList.reduce((acc, s) => acc + (s.confidenceLevel || 5), 0) / Math.max(1, subjectsList.length)),
+        revisionRequirement: "Personalized spaced recall loops scheduled dynamically.",
         examReadinessScore: clientReadinessScore,
-        riskLevel: clientRiskLevel
+        riskLevel: subjectsList.some(s => getSubjectRiskStatus(s).status === "high") ? "high" : "moderate"
       };
+
+      const computedRankings = subjectsList.map((sub) => {
+        const score = calculateSubjectPriorityScore(sub);
+        const risk = getSubjectRiskStatus(sub);
+        const daysRem = sub.examDate ? Math.max(0, Math.ceil((new Date(sub.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+        return {
+          subjectName: sub.name,
+          priorityScore: score,
+          riskStatus: risk.status,
+          daysRemaining: daysRem,
+          reason: `Priority Score of ${score} based on difficulty is ${sub.difficultyLevel}, low confidence coefficients, and study countdown.`
+        };
+      }).sort((a, b) => b.priorityScore - a.priorityScore);
+
+      const computedCountdowns = subjectsList.map((sub) => {
+        const daysRem = sub.examDate ? Math.max(0, Math.ceil((new Date(sub.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+        const total = Math.max(1, sub.totalChapters || 1);
+        const completed = sub.completedChapters || 0;
+        const incompletePct = Math.round(((total - completed) / total) * 100);
+        const risk = getSubjectRiskStatus(sub);
+        return {
+          subjectName: sub.name,
+          daysLeft: daysRem,
+          riskStatus: risk.status,
+          isCrisis: risk.isCrisis,
+          syllabusIncompletePercent: incompletePct
+        };
+      });
+
+      const firstSubjectDate = subjectsList[0]?.examDate || "";
 
       const planObject: StudyPlan = {
         id: `assessment-${Date.now()}`,
-        subject: assessmentData.course,
-        level: assessmentData.examType,
-        overview: `Custom Interactive Schedule constructed for standard: ${assessmentData.course}. Targeting: ${assessmentData.subjects}.`,
-        proTip: `Strategy Focus: Prioritize active recall of high marks chapters first.`,
+        subject: subjectsList.map(s => s.name).join(", "),
+        level: "Custom Timetable Series",
+        overview: `Comprehensive interactive scheduled strategy plan for: ${subjectsList.map(s => s.name).join(", ")}.`,
+        proTip: `Hard subjects scheduled with premium priority. Spaced repetition automatically compiled.`,
         milestones: [
           {
-            week: "Main Objective",
-            title: `Master ${assessmentData.subjects}`,
-            topics: [`Focus on hardest topic: ${assessmentData.hardestSubject || 'General core'}`],
-            estimatedHours: assessmentData.dailyHours,
+            week: "Sprint Core Target",
+            title: `Master ${subjectsList.map(s => s.name).join(" & ")}`,
+            topics: subjectsList.map(s => `${s.name} critical review: ${s.importantChapters || 'All key chapters'}`),
+            estimatedHours: subjectsList.reduce((acc, s) => acc + (s.desiredDailyHours || 2), 0),
             quizAvailable: true,
             completed: false
           }
         ],
         createdAt: new Date().toISOString(),
-        progress: 0,
-        assessmentData: { ...assessmentData },
+        progress: syllabusCompletionPct,
+        assessmentData: {
+          course: "Multi-subject Profile",
+          subjects: subjectsList.map(s => s.name).join(", "),
+          startDate: firstSubjectDate,
+          chaptersTotal: totalChapters,
+          chaptersCompleted: completedChapters,
+          subjectsList: [...subjectsList],
+          routine: { ...routineData }
+        },
         assessmentResult: {
           daysRemaining: calculatedM.daysRemaining,
           completionPercent: calculatedM.syllabusCompletionPercent,
@@ -671,7 +837,9 @@ export default function App() {
           revisionSchedule: freshResult.revisionSchedule,
           examCrisisPlan: freshResult.examCrisisPlan,
           priorityTopics: freshResult.priorityTopics || [],
-          aiRecommendations: freshResult.aiRecommendations || []
+          aiRecommendations: freshResult.aiRecommendations || [],
+          priorityRanking: freshResult.priorityRanking || computedRankings,
+          subjectCountdowns: freshResult.subjectCountdowns || computedCountdowns
         }
       };
 
@@ -683,64 +851,125 @@ export default function App() {
       awardXp(500);
       addCoins(150);
       logActivityToday();
-      showToast(`🏆 Assessment concluded! MashaAllah, cognitive roadmaps generated. +500 XP, +150 Coins`);
+      showToast(`🏆 Study Plan Generated! Personalized counts & priorities saved safely. +500 XP, +150 Coins`);
       
     } catch (err: any) {
       console.error("AI assessment plan error logs:", err);
-      showToast("❌ Connection error. Baseline calculated metrics generated locally!");
+      showToast("❌ Connection state slow. Premium local schedules calculated!");
+
+      const totalChapters = subjectsList.reduce((acc, s) => acc + (s.totalChapters || 0), 0);
+      const completedChapters = subjectsList.reduce((acc, s) => acc + (s.completedChapters || 0), 0);
+      const syllabusCompletionPct = totalChapters > 0 ? Math.round((completedChapters / totalChapters) * 100) : 0;
       
+      const overallShortestCountdown = subjectsList.reduce((min, s) => {
+        const days = s.examDate ? Math.max(0, Math.ceil((new Date(s.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+        return min === null || days < min ? days : min;
+      }, null as number | null) || 15;
+
       const clientReadinessScore = Math.max(10, Math.min(100, Math.round(
-        (Math.round((assessmentData.chaptersCompleted / Math.max(1, assessmentData.chaptersTotal)) * 100) * 0.4) +
-        (assessmentData.confidenceLevel * 4.0) +
-        ((assessmentData.previousMarks || 0) * 0.2)
+        (syllabusCompletionPct * 0.4) +
+        (subjectsList.reduce((acc, s) => acc + (s.confidenceLevel || 5), 0) / Math.max(1, subjectsList.length) * 4.0) +
+        (subjectsList.reduce((acc, s) => acc + (s.previousMarks || 75), 0) / Math.max(1, subjectsList.length) * 0.2)
       )));
-      const clientRiskLevel = clientReadinessScore >= 75 ? "safe" : clientReadinessScore >= 55 ? "moderate" : "high";
-      const daysRem = Math.max(0, Math.ceil((new Date(assessmentData.startDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
-      const compPct = Math.round((assessmentData.chaptersCompleted / Math.max(1, assessmentData.chaptersTotal)) * 100);
+
+      const computedRankings = subjectsList.map((sub) => {
+        const score = calculateSubjectPriorityScore(sub);
+        const risk = getSubjectRiskStatus(sub);
+        const daysRem = sub.examDate ? Math.max(0, Math.ceil((new Date(sub.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+        return {
+          subjectName: sub.name,
+          priorityScore: score,
+          riskStatus: risk.status,
+          daysRemaining: daysRem,
+          reason: `Priority Score of ${score} based on difficulty (${sub.difficultyLevel}), confidence (${sub.confidenceLevel}/10), and exam timing.`
+        };
+      }).sort((a, b) => b.priorityScore - a.priorityScore);
+
+      const computedCountdowns = subjectsList.map((sub) => {
+        const daysRem = sub.examDate ? Math.max(0, Math.ceil((new Date(sub.examDate).getTime() - new Date().getTime()) / 86400000)) : 30;
+        const total = Math.max(1, sub.totalChapters || 1);
+        const completed = sub.completedChapters || 0;
+        const incompletePct = Math.round(((total - completed) / total) * 100);
+        const risk = getSubjectRiskStatus(sub);
+        return {
+          subjectName: sub.name,
+          daysLeft: daysRem,
+          riskStatus: risk.status,
+          isCrisis: risk.isCrisis,
+          syllabusIncompletePercent: incompletePct
+        };
+      });
+
+      const firstSubjectDate = subjectsList[0]?.examDate || "";
+
+      const localDailyTimeline = `**Premium Non-Overlapping Timetable** (Based on your routine timings):
+
+*   **🌅 Post-Wakeup Sprint**: **05:30 AM - 07:30 AM** (Active study block: Target hardest subject: *${computedRankings[0]?.subjectName || 'First priority'}*).
+*   **🍽 Breakfast Break**: **${routineData.breakfastStart} AM - ${routineData.breakfastEnd} AM**.
+*   **📖 Midday Session**: **09:00 AM - 12:00 PM** (Target: *${computedRankings[1]?.subjectName || 'Second priority'}*).
+*   **🍽 Lunch Break**: **${routineData.lunchStart} - ${routineData.lunchEnd}**.
+*   **📝 Afternoon Exercises**: **02:30 PM - 04:30 PM** (Revision block).
+*   **🍽 Dinner Break**: **${routineData.dinnerStart} - ${routineData.dinnerEnd}**.
+*   **🌙 Evening Spaced Recap**: **09:00 PM - 10:00 PM** (Quick quizzes & retention loops).
+
+*Note: All study activities automatically stop during prayer blocks: Fajr (${routineData.fajrTime}), Dhuhr (${routineData.dhuhrTime}), Asr (${routineData.asrTime}), Maghrib (${routineData.maghribTime}), and Isha (${routineData.ishaTime}).*`;
+
+      const localWeeklyTimeline = `**Priority Study Progress List**:
+${computedRankings.map((rk, idx) => `
+*   **Week 1-2 Focus: ${rk.subjectName}** (Priority Score: ${rk.priorityScore} - ${rk.riskStatus.toUpperCase()} RISK)
+    *   Study total hours: ${rk.priorityScore > 35 ? '15h' : '8h'} weekly block.
+    *   Chapters breakdown: Target key lessons carrying highest weights.
+`).join('')}`;
 
       const fallbackObject: StudyPlan = {
         id: `assessment-${Date.now()}`,
-        subject: assessmentData.course,
-        level: assessmentData.examType,
-        overview: `Interactive Assessment Schedule constructed for standard: ${assessmentData.course}`,
-        proTip: `Strategy Focus: Prioritize active recall of high marks chapters first.`,
+        subject: subjectsList.map(s => s.name).join(", "),
+        level: "Custom Strategy Calendar",
+        overview: `Baselines generated locally for standard tracking.`,
+        proTip: `Hard subjects receive earlier slots and higher spaced repetition.`,
         milestones: [
           {
-            week: "Main Objective",
-            title: `Master ${assessmentData.subjects}`,
-            topics: [`Hardest topic: ${assessmentData.hardestSubject || 'General core'}`],
-            estimatedHours: assessmentData.dailyHours,
-            quizAvailable: true,
+            week: "Milestone Sprint",
+            title: `Study Target: ${subjectsList.map(s => s.name).join(", ")}`,
+            topics: subjectsList.map(s => `Review ${s.name} foundation chapters.`),
+            estimatedHours: subjectsList.reduce((acc, s) => acc + (s.desiredDailyHours || 2), 0),
+            quizAvailable: false,
             completed: false
           }
         ],
         createdAt: new Date().toISOString(),
-        progress: 0,
-        assessmentData: { ...assessmentData },
+        progress: syllabusCompletionPct,
+        assessmentData: {
+          course: "Local Session",
+          subjects: subjectsList.map(s => s.name).join(", "),
+          startDate: firstSubjectDate,
+          chaptersTotal: totalChapters,
+          chaptersCompleted: completedChapters,
+          subjectsList: [...subjectsList],
+          routine: { ...routineData }
+        },
         assessmentResult: {
-          daysRemaining: daysRem,
-          completionPercent: compPct,
-          difficultyScore: Math.max(1, 10 - assessmentData.confidenceLevel),
-          weaknessScore: Math.round(((100 - (assessmentData.previousMarks || 0)) / 20) + (10 - assessmentData.confidenceLevel) * 0.5),
-          confidenceScore: assessmentData.confidenceLevel,
-          revisionRequirement: "Active recall spaced intervals recommended.",
+          daysRemaining: overallShortestCountdown,
+          completionPercent: syllabusCompletionPct,
+          difficultyScore: Math.round(subjectsList.reduce((acc, s) => acc + (s.difficultyLevel === "Hard" ? 9 : s.difficultyLevel === "Medium" ? 6 : 3), 0) / Math.max(1, subjectsList.length)),
+          weaknessScore: Math.round(10 - (subjectsList.reduce((acc, s) => acc + (s.confidenceLevel || 5), 0) / Math.max(1, subjectsList.length))),
+          confidenceScore: Math.round(subjectsList.reduce((acc, s) => acc + (s.confidenceLevel || 5), 0) / Math.max(1, subjectsList.length)),
+          revisionRequirement: "Focus Spaced repetition intervals every 2 days.",
           readinessScore: clientReadinessScore,
-          riskScore: clientRiskLevel,
-          dailyStudyPlan: `**Local Calculated Daily Routine Schedule**:\n\n*   **06:00 AM - 07:30 AM**: Active conceptual review prioritising *${assessmentData.hardestSubject || 'hardest topic'}*.\n*   **02:00 PM - 03:30 PM**: Direct chapter exercise solving for completion.\n*   **08:00 PM - 09:30 PM**: Dedicated recall testing and quiz tracking.`,
-          weeklyStudyPlan: `**Local Calculated Week-by-Week Guidance**:\n\n*   **Week 1**: Cover at least 2 remaining lessons, review highly-important chapters: *${assessmentData.importantChapters || 'general core'}*.\n*   **Week 2**: Track previous marks areas and target weakest topics.\n*   **Week 3**: Space out flashcards recall loops for memory.`,
-          monthlyStudyPlan: `**Local Calculated Monthly Milestones**:\n\n*   **Month 1**: Solve past chapter questions and master important chapters carrying high marks (**${assessmentData.highMarksChapters || 'various chapters'}**).\n*   **Month 2**: Active recall sprint blocks to cement readiness.`,
-          revisionSchedule: `**Local Revise Spacing Recommendation**:\n\n*   Revise *${assessmentData.hardestSubject || 'hardest subject'}* every 2 days, and easiest subjects every 5 days.`,
-          examCrisisPlan: `**Crisis Defense Strategies**:\n\n*   Prioritize only chapters with High Marks (**${assessmentData.highMarksChapters || 'general lessons'}**).\n*   Perform active quizzes until confidence reaches 8+.`,
-          priorityTopics: [
-            `Highly critical topic study: ${assessmentData.hardestSubject || 'General lessons'}`,
-            `Master carrying marks: ${assessmentData.highMarksChapters || 'Various subtopics'}`,
-            `Struggle topics check: ${assessmentData.struggleTopics || 'Selected areas'}`
-          ],
+          riskScore: subjectsList.some(s => getSubjectRiskStatus(s).status === "high") ? "high" : "moderate",
+          dailyStudyPlan: localDailyTimeline,
+          weeklyStudyPlan: localWeeklyTimeline,
+          monthlyStudyPlan: `**Sprint Schedule (Next 30 Days)**:\n\n*   **Days 1 to 15**: Complete chapters of difficult subjects.\n*   **Days 16 to 30**: Comprehensive revision cycles and solve past papers.`,
+          revisionSchedule: `**Spaced repetition intervals**:\n\n${computedRankings.map(rk => `*   **${rk.subjectName}**: Revise every ${rk.priorityScore > 35 ? '2' : '5'} days.\n`).join('')}`,
+          examCrisisPlan: `**Crisis Mode Directives**:\n\n${computedRankings.filter(rk => rk.riskStatus === 'high').map(rk => `*   **${rk.subjectName} is in Exam Crisis Mode!** Prioritize high-mark chapters, solve 5 previous mark papers.\n`).join('') || '*No subjects currently in crisis mode.*'}`,
+          priorityTopics: computedRankings.map(rk => `Priority: ${rk.subjectName} (Confidence: ${rk.riskStatus})`),
           aiRecommendations: [
-            `Utilize your optimal study time during the **${assessmentData.preferredTime}** blocks.`,
-            `Leverage notes and uploaded resources to speed up lesson revisions.`,
-            `Enforce strict sleep duration from **${assessmentData.sleepTime}** to **${assessmentData.wakeUpTime}** to avoid fatigue.`
-          ]
+            `Maintain strict wake-up schedule at **${routineData.wakeUpTime}** and sleep at **${routineData.sleepTime}** for high cognitive retention.`,
+            `Do not study during meals: breakfast (${routineData.breakfastStart} - ${routineData.breakfastEnd}), lunch (${routineData.lunchStart} - ${routineData.lunchEnd}), or dinner (${routineData.dinnerStart} - ${routineData.dinnerEnd}).`,
+            `Ensure study slots are divided by spiritual reflection intervals to boost concentration.`
+          ],
+          priorityRanking: computedRankings,
+          subjectCountdowns: computedCountdowns
         }
       };
 
@@ -1140,7 +1369,18 @@ export default function App() {
   };
 
   return (
-    <div className="flex bg-[#030303] text-slate-100 min-h-screen font-sans antialiased overflow-hidden selection:bg-blue-500/35 selection:text-white pb-16 md:pb-0">
+    <AnimatePresence mode="wait">
+      {isInitialLoading ? (
+        <SplashAndLoading key="splash" onComplete={() => setIsInitialLoading(false)} />
+      ) : (
+        <motion.div
+          key="app-main"
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="flex bg-[#070913] text-slate-100 min-h-screen font-sans antialiased overflow-hidden selection:bg-indigo-500/35 selection:text-white pb-16 md:pb-0 w-full"
+        >
       
       {/* Toast Alert elements */}
       {toastMessage && (
@@ -1158,14 +1398,21 @@ export default function App() {
       )}
 
       {/* Modern responsive Sidebar Navigation */}
-      <Sidebar 
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        strictFocusMode={strictFocusMode}
-        profile={{ name: userName, xp, level: Math.floor(xp / 500) + 1, coins, streak, lastActiveDate: "", isPro: false }}
-        streak={streak}
-        xp={xp}
-      />
+      <motion.div
+        initial={{ x: -30, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ delay: 0.15, duration: 0.8, ease: "easeOut" }}
+        className="shrink-0"
+      >
+        <Sidebar 
+          currentTab={currentTab}
+          onSelectTab={setCurrentTab}
+          strictFocusMode={strictFocusMode}
+          profile={{ name: userName, xp, level: Math.floor(xp / 500) + 1, coins, streak, lastActiveDate: "", isPro: false }}
+          streak={streak}
+          xp={xp}
+        />
+      </motion.div>
 
       {/* Main Study Arena */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto pt-16 md:pt-0">
@@ -1198,28 +1445,33 @@ export default function App() {
         </header>
 
         {/* Tab view divisions controller */}
-        <div className="flex-1 p-6 md:p-8 space-y-8 animate-fade-in">
+        <motion.div 
+          initial="hidden"
+          animate="visible"
+          variants={appContainerVariants}
+          className="flex-1 p-6 md:p-8 space-y-8 animate-fade-in"
+        >
           
           {/* 1. Launch/Onboarding Pad tab */}
           {currentTab === "landing" && (
-            <div className="space-y-6 max-w-4xl mx-auto">
+            <motion.div variants={appItemVariants} className="space-y-6 max-w-4xl mx-auto">
               {/* Highlight greeting */}
-              <div className="space-y-3 bg-gradient-to-br from-zinc-900/80 to-zinc-950/90 rounded-3xl p-8 border border-white/10 relative overflow-hidden shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
+              <div className="space-y-3 bg-gradient-to-br from-indigo-950/50 via-[#0d1024]/90 to-indigo-950/60 rounded-3xl p-8 border border-indigo-500/20 relative overflow-hidden shadow-[0_12px_40px_-12px_rgba(0,0,0,0.6)]">
                 <div className="absolute top-1/2 right-6 transform -translate-y-1/2 opacity-10 hidden md:block">
-                  <Sparkles className="w-36 h-36 text-cyan-400 rotate-12" />
+                  <Sparkles className="w-36 h-36 text-indigo-400 rotate-12" />
                 </div>
                 
                 <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight font-display">Forge Your Mind, Conquer the Syllabus</h1>
-                <p className="text-slate-400 text-sm max-w-xl leading-relaxed">
+                <p className="text-slate-300 text-sm max-w-xl leading-relaxed">
                   Welcome to StudyForge AI, your unified cognitive desk. Link standard textbooks inside PDF Vault, structure exam timelines using Study Planner, and lock retention in Spaced Revision intervals.
                 </p>
 
                 <div className="pt-3 flex gap-3">
-                  <button onClick={() => setCurrentTab("focus")} className="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 hover:scale-[1.02] text-slate-950 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] cursor-pointer">
+                  <button onClick={() => setCurrentTab("focus")} className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:scale-[1.02] text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] cursor-pointer">
                     Initiate Study Timer
                   </button>
-                  <button onClick={() => setCurrentTab("coach")} className="px-5 py-2.5 bg-[#121215] hover:bg-[#1c1c22] text-white border border-white/10 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer">
-                    Ask Coach
+                  <button onClick={() => setCurrentTab("coach")} className="px-5 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 border border-purple-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                    Ask AI Coach
                   </button>
                 </div>
               </div>
@@ -1246,7 +1498,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* 2. Scholar Desk dashboard */}
@@ -1340,22 +1592,16 @@ export default function App() {
                   {/* Header Progress Tracker Indicator */}
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-black tracking-widest text-slate-400 uppercase">
-                      <span>Step {assessmentStep} of 7</span>
+                      <span>Step {assessmentStep} of 2</span>
                       <span className="text-purple-400">
-                        {assessmentStep === 1 && "📚 Academic details"}
-                        {assessmentStep === 2 && "📅 Exam details"}
-                        {assessmentStep === 3 && "📖 Syllabus breakdown"}
-                        {assessmentStep === 4 && "🎯 Performance dynamics"}
-                        {assessmentStep === 5 && "⏰ Study timer specs"}
-                        {assessmentStep === 6 && "📿 Daily routine bounds"}
-                        {assessmentStep === 7 && "📚 Attach resources"}
+                        {assessmentStep === 1 ? "🌅 Routine, Meals & Prayer Bounds" : "📚 Unlimited Subject Planner inputs"}
                       </span>
                     </div>
                     {/* Linear graphic progress bar */}
-                    <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
-                        style={{ width: `${(assessmentStep / 7) * 100}%` }}
+                        style={{ width: `${(assessmentStep / 2) * 100}%` }}
                       ></div>
                     </div>
                   </div>
@@ -1363,382 +1609,391 @@ export default function App() {
                   {/* Wizard content cases */}
                   <form onSubmit={handleGenerateAssessmentPlan} className="space-y-6 pt-4">
                     {assessmentStep === 1 && (
-                      <div className="space-y-4 animate-fadeIn">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-white">📚 Academic Scope</h3>
-                          <p className="text-xs text-slate-400">Tell us what you represent and study classes standard.</p>
+                      <div className="space-y-6 animate-fadeIn">
+                        <div className="space-y-1 bg-white/[0.02] p-4 rounded-2xl border border-white/5 font-sans">
+                          <h3 className="text-sm font-black uppercase text-white flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-purple-400" />
+                            Daily Routine Timing Bounds
+                          </h3>
+                          <p className="text-xs text-slate-400">Specify your wake-up, meal, sleep, and prayer boundaries to avoid study scheduling conflicts.</p>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">What is your course/class/standard?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.course}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, course: e.target.value })}
-                              placeholder="e.g. Grade 12 CBSE, BS Computer Science Year 2"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">What subjects are you studying?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.subjects}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, subjects: e.target.value })}
-                              placeholder="e.g. Physics, Math, Chemistry, Computer Architecture"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                              required
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Which subject is hardest for you?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.hardestSubject}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, hardestSubject: e.target.value })}
-                              placeholder="e.g. Advanced Calculus"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Which subject is easiest for you?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.easiestSubject}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, easiestSubject: e.target.value })}
-                              placeholder="e.g. English Literature"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
-                    {assessmentStep === 2 && (
-                      <div className="space-y-4 animate-fadeIn">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-white">📅 Exam & Timeline particulars</h3>
-                          <p className="text-xs text-slate-400">Map the core boundary parameters of your test season.</p>
-                        </div>
+                        {/* Sleeping block */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Exam start date?</label>
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                              🌅 Wake-Up Time
+                            </label>
                             <input
-                              type="date"
-                              value={assessmentData.startDate}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, startDate: e.target.value })}
+                              type="time"
+                              value={routineData.wakeUpTime}
+                              onChange={(e) => setRoutineData({ ...routineData, wakeUpTime: e.target.value })}
                               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50 color-scheme-dark"
                               required
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Exam end date?</label>
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                              🌙 Night Sleep Time
+                            </label>
                             <input
-                              type="date"
-                              value={assessmentData.endDate}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, endDate: e.target.value })}
+                              type="time"
+                              value={routineData.sleepTime}
+                              onChange={(e) => setRoutineData({ ...routineData, sleepTime: e.target.value })}
                               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50 color-scheme-dark"
+                              required
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Exam type category?</label>
-                            <select
-                              value={assessmentData.examType}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, examType: e.target.value })}
-                              className="w-full bg-[#0D0D10] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            >
-                              <option value="Internal exams">Internal exams / Midterms</option>
-                              <option value="Semester exams">Semester exams</option>
-                              <option value="Board exams">Board exams</option>
-                              <option value="Competitive exams">Competitive exams</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">How many study holidays are available?</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={assessmentData.studyHolidays}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, studyHolidays: parseInt(e.target.value, 10) || 0 })}
-                              placeholder="e.g. 5"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
-                    {assessmentStep === 3 && (
-                      <div className="space-y-4 animate-fadeIn">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-white">📖 Syllabus Chapters Outline</h3>
-                          <p className="text-xs text-slate-400">Specify standard volume density of chapters.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Total chapters count in each subject?</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={assessmentData.chaptersTotal}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, chaptersTotal: parseInt(e.target.value, 10) || 12 })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">How many chapters completed so far?</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max={assessmentData.chaptersTotal}
-                              value={assessmentData.chaptersCompleted}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, chaptersCompleted: parseInt(e.target.value, 10) || 0 })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Which chapters are most important?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.importantChapters}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, importantChapters: e.target.value })}
-                              placeholder="e.g. Chapter 1-3 Foundations, Chapter 6-8 Applications"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Which chapters carry high marks?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.highMarksChapters}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, highMarksChapters: e.target.value })}
-                              placeholder="e.g. Chapter 4 Integrations, Chapter 10 Quantum"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {assessmentStep === 4 && (
-                      <div className="space-y-4 animate-fadeIn">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-white">🎯 Performance Analysis & Metrics</h3>
-                          <p className="text-xs text-slate-400">Map your preceding milestones grades and comfort margins.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Previous marks/baseline in each subject (%)?</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={assessmentData.previousMarks}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, previousMarks: parseInt(e.target.value, 10) || 75 })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex justify-between items-center">
-                              <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">General Subject Confidence Level (1-10)?</label>
-                              <span className="text-purple-400 text-xs font-black">{assessmentData.confidenceLevel}/10</span>
+                        {/* Meals section */}
+                        <div className="space-y-3">
+                          <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-white/5 pb-1 font-sans">🍽 Meal Start & End Schedules</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-1.5 p-3 bg-white/[0.01] border border-white/5 rounded-xl">
+                              <label className="text-[10px] font-black uppercase text-slate-300 block">🍳 Breakfast Break</label>
+                              <div className="flex gap-2 items-center">
+                                <input
+                                  type="time"
+                                  value={routineData.breakfastStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, breakfastStart: e.target.value })}
+                                  className="w-full bg-white/5 border border-white/10 rounded-lg py-1 px-2 text-xs text-white color-scheme-dark"
+                                />
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase shrink-0">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.breakfastEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, breakfastEnd: e.target.value })}
+                                  className="w-full bg-white/5 border border-white/10 rounded-lg py-1 px-2 text-xs text-white color-scheme-dark"
+                                />
+                              </div>
                             </div>
-                            <input
-                              type="range"
-                              min="1"
-                              max="10"
-                              value={assessmentData.confidenceLevel}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, confidenceLevel: parseInt(e.target.value, 10) || 5 })}
-                              className="w-full accent-purple-500 mt-2 cursor-pointer h-1.5 bg-white/15 rounded-lg appearance-none"
-                            />
+                            <div className="space-y-1.5 p-3 bg-white/[0.01] border border-white/5 rounded-xl">
+                              <label className="text-[10px] font-black uppercase text-slate-300 block">🍕 Lunch hours</label>
+                              <div className="flex gap-2 items-center">
+                                <input
+                                  type="time"
+                                  value={routineData.lunchStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, lunchStart: e.target.value })}
+                                  className="w-full bg-white/5 border border-white/10 rounded-lg py-1 px-2 text-xs text-white color-scheme-dark"
+                                />
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase shrink-0">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.lunchEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, lunchEnd: e.target.value })}
+                                  className="w-full bg-white/5 border border-white/10 rounded-lg py-1 px-2 text-xs text-white color-scheme-dark"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1.5 p-3 bg-white/[0.01] border border-white/5 rounded-xl">
+                              <label className="text-[10px] font-black uppercase text-slate-300 block">🍱 Dinner Session</label>
+                              <div className="flex gap-2 items-center">
+                                <input
+                                  type="time"
+                                  value={routineData.dinnerStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, dinnerStart: e.target.value })}
+                                  className="w-full bg-white/5 border border-white/10 rounded-lg py-1 px-2 text-xs text-white color-scheme-dark"
+                                />
+                                <span className="text-[10px] text-slate-500 font-extrabold uppercase shrink-0">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.dinnerEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, dinnerEnd: e.target.value })}
+                                  className="w-full bg-white/5 border border-white/10 rounded-lg py-1 px-2 text-xs text-white color-scheme-dark"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Which topics do you struggle with most?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.struggleTopics}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, struggleTopics: e.target.value })}
-                              placeholder="e.g. Wave packet equations, Bra-ket vector mapping"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Which topics are already mastered?</label>
-                            <input
-                              type="text"
-                              value={assessmentData.masteredTopics}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, masteredTopics: e.target.value })}
-                              placeholder="e.g. 1D Harmonic oscillator, Schrodinger wave equation"
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
+
+                        {/* Prayer Times checklist bounds */}
+                        <div className="space-y-3 font-sans">
+                          <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-white/5 pb-1 flex items-center gap-1.5 text-purple-300">
+                            📿 Spiritual Prayer Timestamps (No Study During These Blocks)
+                          </h4>
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                            <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Fajr</label>
+                              <input
+                                type="time"
+                                value={routineData.fajrTime}
+                                onChange={(e) => setRoutineData({ ...routineData, fajrTime: e.target.value })}
+                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
+                              />
+                            </div>
+                            <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Dhuhr</label>
+                              <input
+                                type="time"
+                                value={routineData.dhuhrTime}
+                                onChange={(e) => setRoutineData({ ...routineData, dhuhrTime: e.target.value })}
+                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
+                              />
+                            </div>
+                            <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Asr</label>
+                              <input
+                                type="time"
+                                value={routineData.asrTime}
+                                onChange={(e) => setRoutineData({ ...routineData, asrTime: e.target.value })}
+                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
+                              />
+                            </div>
+                            <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Maghrib</label>
+                              <input
+                                type="time"
+                                value={routineData.maghribTime}
+                                onChange={(e) => setRoutineData({ ...routineData, maghribTime: e.target.value })}
+                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
+                              />
+                            </div>
+                            <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center col-span-2 sm:col-span-1">
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Isha</label>
+                              <input
+                                type="time"
+                                value={routineData.ishaTime}
+                                onChange={(e) => setRoutineData({ ...routineData, ishaTime: e.target.value })}
+                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
                     )}
-
-                    {assessmentStep === 5 && (
-                      <div className="space-y-4 animate-fadeIn">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-white">⏰ Time Management & Intervals</h3>
-                          <p className="text-xs text-slate-400">Fine-tune the daily stamina bounds of your study habit.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Daily Study Hours Available?</label>
-                            <input
-                              type="number"
-                              min="1"
-                              max="16"
-                              value={assessmentData.dailyHours}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, dailyHours: parseInt(e.target.value, 10) || 4 })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Preferred Study Block Time?</label>
-                            <select
-                              value={assessmentData.preferredTime}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, preferredTime: e.target.value })}
-                              className="w-full bg-[#0D0D10] border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            >
-                              <option value="Morning">Morning (06:00 AM - 12:00 PM)</option>
-                              <option value="Afternoon">Afternoon (12:00 PM - 05:00 PM)</option>
-                              <option value="Evening">Evening (05:00 PM - 08:00 PM)</option>
-                              <option value="Night">Night (08:00 PM - 02:00 AM)</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Maximum Single Focus Duration (Mins)?</label>
-                            <input
-                              type="number"
-                              min="10"
-                              max="120"
-                              value={assessmentData.maxFocusDuration}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, maxFocusDuration: parseInt(e.target.value, 10) || 25 })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Preferred Break Interval (Mins)?</label>
-                            <input
-                              type="number"
-                              min="2"
-                              max="30"
-                              value={assessmentData.breakPreference}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, breakPreference: parseInt(e.target.value, 10) || 5 })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {assessmentStep === 6 && (
-                      <div className="space-y-4 animate-fadeIn">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-white">📿 Daily Routine Elements</h3>
-                          <p className="text-xs text-slate-400">Map standard sleeping structures and spiritual options.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Typical Wake-Up Time?</label>
-                            <input
-                              type="time"
-                              value={assessmentData.wakeUpTime}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, wakeUpTime: e.target.value })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50 color-scheme-dark"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Typical Sleep Time?</label>
-                            <input
-                              type="time"
-                              value={assessmentData.sleepTime}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, sleepTime: e.target.value })}
-                              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-purple-500/50 color-scheme-dark"
-                            />
-                          </div>
-                        </div>
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center justify-between gap-4 mt-2">
+                    {assessmentStep === 2 && (
+                      <div className="space-y-6 animate-fadeIn max-h-[580px] overflow-y-auto pr-1 no-scrollbar font-sans">
+                        <div className="flex justify-between items-center bg-white/[0.02] p-4 rounded-2xl border border-white/5 font-sans">
                           <div className="space-y-0.5">
-                            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Prayer Tracker Integration</h4>
-                            <p className="text-[11px] text-slate-400">Log spiritual pauses as focused milestones integrated into timelines.</p>
+                            <h3 className="text-sm font-black uppercase text-white flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-purple-400" />
+                              Academic Subjects Outline
+                            </h3>
+                            <p className="text-[11px] text-slate-400">Define academic scopes independently. Unlimited subjects permitted.</p>
                           </div>
-                          <input
-                            type="checkbox"
-                            checked={assessmentData.prayerEnabled}
-                            onChange={(e) => setAssessmentData({ ...assessmentData, prayerEnabled: e.target.checked })}
-                            className="w-5 h-5 accent-purple-500 border-none cursor-pointer rounded bg-white/10 outline-none"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {assessmentStep === 7 && (
-                      <div className="space-y-4 animate-fadeIn">
-                        <div className="space-y-1">
-                          <h3 className="text-base font-bold text-white">📚 Connected Learning Vault Resources</h3>
-                          <p className="text-xs text-slate-400">Incorporate counts of physical resources to bolster metrics calculations.</p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="space-y-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
-                            <FileText className="w-5 h-5 text-blue-400 mx-auto mb-1" />
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Uploaded PDFs</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={assessmentData.pdfsUploadedCount}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, pdfsUploadedCount: parseInt(e.target.value, 10) || 0 })}
-                              className="w-16 bg-[#0A0A0B]/80 text-center border border-white/10 rounded-lg py-1 text-xs text-white mt-1 outline-none focus:border-blue-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
-                            <PenTool className="w-5 h-5 text-purple-400 mx-auto mb-1" />
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Attached Notes</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={assessmentData.notesUploadedCount}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, notesUploadedCount: parseInt(e.target.value, 10) || 0 })}
-                              className="w-16 bg-[#0A0A0B]/80 text-center border border-white/10 rounded-lg py-1 text-xs text-white mt-1 outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <div className="space-y-1 bg-white/5 p-4 rounded-2xl border border-white/5 text-center">
-                            <ImageIcon className="w-5 h-5 text-cyan-400 mx-auto mb-1" />
-                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Topic Diagrams</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={assessmentData.imagesUploadedCount}
-                              onChange={(e) => setAssessmentData({ ...assessmentData, imagesUploadedCount: parseInt(e.target.value, 10) || 0 })}
-                              className="w-16 bg-[#0A0A0B]/80 text-center border border-white/10 rounded-lg py-1 text-xs text-white mt-1 outline-none focus:border-cyan-500/50"
-                            />
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSubjectsList([
+                                ...subjectsList,
+                                {
+                                  name: "",
+                                  examDate: "",
+                                  totalChapters: 10,
+                                  completedChapters: 0,
+                                  importantChapters: "",
+                                  difficultyLevel: "Medium",
+                                  confidenceLevel: 5,
+                                  previousMarks: 75,
+                                  desiredDailyHours: 2,
+                                  notes: ""
+                                }
+                              ]);
+                              showToast("➕ Added new subject draft template successfully!");
+                            }}
+                            className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
+                          >
+                            ➕ Add Subject
+                          </button>
                         </div>
 
-                        <div className="bg-purple-950/20 border border-purple-500/20 p-4 rounded-2xl flex gap-3 text-xs text-purple-200 mt-2">
-                          <CheckCircle className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-                          <div className="space-y-0.5">
-                            <h4 className="font-extrabold text-white">Full-Dimensional Synthesis Ready!</h4>
-                            <p className="text-slate-400 text-[11px]">Click below to invoke StudyForge AI, calculating precise performance index coefficients and dynamic pacing calendars.</p>
-                          </div>
+                        {/* Subject Cards List */}
+                        <div className="space-y-6 font-sans">
+                          {subjectsList.map((subject, index) => (
+                            <div key={index} className="bg-[#0b0c10]/40 border border-white/10 rounded-2xl p-5 relative space-y-4">
+                              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                                <span className="text-[11px] font-black text-blue-400 uppercase tracking-widest">
+                                  📚 Subject #{index + 1} : {subject.name || "Untitled Draft"}
+                                </span>
+                                {subjectsList.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSubjectsList(subjectsList.filter((_, idx) => idx !== index));
+                                      showToast("❌ Removed subject from active list.");
+                                    }}
+                                    className="text-xs font-black text-rose-400 hover:text-rose-300 transition-all uppercase tracking-wider animate-fadeIn"
+                                  >
+                                    ❌ Remove
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 font-sans">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-slate-400">📚 Subject Name</label>
+                                  <input
+                                    type="text"
+                                    value={subject.name || ""}
+                                    onChange={(e) => {
+                                      const updated = [...subjectsList];
+                                      updated[index].name = e.target.value;
+                                      setSubjectsList(updated);
+                                    }}
+                                    placeholder="e.g. Mathematics"
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500/50"
+                                    required
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-slate-400">📅 Exam Date</label>
+                                  <input
+                                    type="date"
+                                    value={subject.examDate || ""}
+                                    onChange={(e) => {
+                                      const updated = [...subjectsList];
+                                      updated[index].examDate = e.target.value;
+                                      setSubjectsList(updated);
+                                    }}
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-blue-500/50 color-scheme-dark"
+                                    required
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">📖 Total Chapters</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={subject.totalChapters || 1}
+                                      onChange={(e) => {
+                                        const updated = [...subjectsList];
+                                        updated[index].totalChapters = parseInt(e.target.value, 10) || 1;
+                                        setSubjectsList(updated);
+                                      }}
+                                      className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">✅ Completed</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={subject.completedChapters || 0}
+                                      onChange={(e) => {
+                                        const updated = [...subjectsList];
+                                        updated[index].completedChapters = parseInt(e.target.value, 10) || 0;
+                                        setSubjectsList(updated);
+                                      }}
+                                      className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-slate-400">🔥 Difficulty Level</label>
+                                  <select
+                                    value={subject.difficultyLevel || "Medium"}
+                                    onChange={(e) => {
+                                      const updated = [...subjectsList];
+                                      updated[index].difficultyLevel = e.target.value;
+                                      setSubjectsList(updated);
+                                    }}
+                                    className="w-full bg-[#0D0D10] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500/50"
+                                  >
+                                    <option value="Easy">Easy 😊</option>
+                                    <option value="Medium">Medium ⚙️</option>
+                                    <option value="Hard">Hard 🔥</option>
+                                  </select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="flex justify-between items-center">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">🎯 Confidence Level</label>
+                                    <span className="text-[10px] font-black text-purple-300">{(subject.confidenceLevel || 5)}/10</span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="10"
+                                    value={subject.confidenceLevel || 5}
+                                    onChange={(e) => {
+                                      const updated = [...subjectsList];
+                                      updated[index].confidenceLevel = parseInt(e.target.value, 10);
+                                      setSubjectsList(updated);
+                                    }}
+                                    className="w-full mt-2 accent-purple-500 h-1 cursor-pointer bg-white/10 appearance-none rounded"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">📊 Prev Marks</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      value={subject.previousMarks || 0}
+                                      onChange={(e) => {
+                                        const updated = [...subjectsList];
+                                        updated[index].previousMarks = parseInt(e.target.value, 10) || 0;
+                                        setSubjectsList(updated);
+                                      }}
+                                      className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-black uppercase text-slate-400">⏰ Daily Hours</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max="12"
+                                      value={subject.desiredDailyHours || 1}
+                                      onChange={(e) => {
+                                        const updated = [...subjectsList];
+                                        updated[index].desiredDailyHours = parseInt(e.target.value, 10) || 1;
+                                        setSubjectsList(updated);
+                                      }}
+                                      className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-slate-400">📌 Important Chapters</label>
+                                  <input
+                                    type="text"
+                                    value={subject.importantChapters || ""}
+                                    onChange={(e) => {
+                                      const updated = [...subjectsList];
+                                      updated[index].importantChapters = e.target.value;
+                                      setSubjectsList(updated);
+                                    }}
+                                    placeholder="e.g. Organic chemistry equations, Periodic table properties"
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:border-blue-500/50"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black uppercase text-slate-400">📝 Custom Notes</label>
+                                  <textarea
+                                    rows={1}
+                                    value={subject.notes || ""}
+                                    onChange={(e) => {
+                                      const updated = [...subjectsList];
+                                      updated[index].notes = e.target.value;
+                                      setSubjectsList(updated);
+                                    }}
+                                    placeholder="Add notes about your struggles..."
+                                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs text-white focus:border-blue-500/50 resize-none h-10"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
 
                     {/* Navigation Buttons Row */}
-                    <div className="flex justify-between items-center pt-6 border-t border-white/5">
+                    <div className="flex justify-between items-center pt-6 border-t border-white/5 font-sans">
                       <button
                         type="button"
                         onClick={() => setAssessmentStep((prev) => Math.max(1, prev - 1))}
@@ -1748,19 +2003,10 @@ export default function App() {
                         Prev Step
                       </button>
 
-                      {assessmentStep < 7 ? (
+                      {assessmentStep < 2 ? (
                         <button
                           type="button"
                           onClick={() => {
-                            // Quick validation
-                            if (assessmentStep === 1 && (!assessmentData.course.trim() || !assessmentData.subjects.trim())) {
-                              showToast("⚠️ Standard course and target subject list are mandatory fields!");
-                              return;
-                            }
-                            if (assessmentStep === 2 && !assessmentData.startDate) {
-                              showToast("⚠️ Exam Start Date is required!");
-                              return;
-                            }
                             setAssessmentStep((prev) => prev + 1);
                           }}
                           className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
@@ -2731,7 +2977,7 @@ export default function App() {
             </div>
           )}
 
-        </div>
+        </motion.div>
       </div>
 
       {/* Onboarding welcome modal */}
@@ -2765,6 +3011,8 @@ export default function App() {
         </div>
       )}
 
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

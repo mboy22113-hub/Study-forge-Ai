@@ -225,88 +225,139 @@ FORMATING RULES:
 
       case 'assessment_study_plan': {
         const {
-          academicDetails,
-          examDetails,
-          syllabusDetails,
-          performanceAnalysis,
-          timeManagement,
-          routineDetails,
-          resources,
+          subjectsList,
+          routine
         } = payload;
 
+        // Construct detailed descriptions
+        const subjectsDescription = (subjectsList || []).map((sub: any, idx: number) => `
+Subject #${idx + 1}:
+- Name: ${sub.name}
+- Exam Date: ${sub.examDate || 'Not specified'}
+- Total Chapters: ${sub.totalChapters}
+- Completed Chapters: ${sub.completedChapters}
+- Important Chapters: ${sub.importantChapters || 'None flagged'}
+- Difficulty Level: ${sub.difficultyLevel} (Easy / Medium / Hard)
+- Confidence Level: ${sub.confidenceLevel} (1-10)
+- Previous Marks: ${sub.previousMarks}%
+- Desired Daily Study Hours: ${sub.desiredDailyHours}h
+- Notes: ${sub.notes || 'None'}
+- Days Remaining to Exam: ${sub.daysRemaining || 'Not computed'}
+`).join('\n');
+
+        const routineDescription = `
+🌅 Wake-Up Time: ${routine?.wakeUpTime || '05:00'}
+🌙 Sleep Time: ${routine?.sleepTime || '22:00'}
+
+🍽 Breakfast: ${routine?.breakfastStart || '08:00'} to ${routine?.breakfastEnd || '08:30'}
+🍽 Lunch: ${routine?.lunchStart || '13:00'} to ${routine?.lunchEnd || '14:00'}
+🍽 Dinner: ${routine?.dinnerStart || '20:00'} to ${routine?.dinnerEnd || '21:00'}
+
+📿 Fajr Time: ${routine?.fajrTime || '04:30'}
+📿 Dhuhr Time: ${routine?.dhuhrTime || '12:30'}
+📿 Asr Time: ${routine?.asrTime || '16:00'}
+📿 Maghrib Time: ${routine?.maghribTime || '19:00'}
+📿 Isha Time: ${routine?.ishaTime || '20:30'}
+`;
+
         const prompt = `You are StudyForge AI, an elite educational designer and study coach.
-Generate a comprehensive, highly personalized study plan based on the following complete student assessment interview data:
+Generate a comprehensive, highly personalized study plan based on the following complete student database containing individual subject details and daily routines/schedules.
 
-📚 ACADEMIC DETAILS
-- Course/Class/Standard: ${academicDetails?.course || 'Not specified'}
-- Subjects being studied: ${academicDetails?.subjects || 'Not specified'}
-- Hardest subject: ${academicDetails?.hardestSubject || 'Not specified'}
-- Easiest subject: ${academicDetails?.easiestSubject || 'Not specified'}
+📚 SUBJECTS DETAILS
+${subjectsDescription}
 
-📅 EXAM DETAILS
-- Exam Start Date: ${examDetails?.startDate || 'Not specified'}
-- Exam End Date: ${examDetails?.endDate || 'Not specified'}
-- Study Holidays Available: ${examDetails?.studyHolidays || 0}
-- Exam Type: ${examDetails?.examType || 'Semester Exams'}
+📿 DAILY ROUTINE & BOUNDS SESSISONS
+${routineDescription}
 
-📖 SYLLABUS DETAILS
-- Total chapters/lessons count: ${syllabusDetails?.chaptersTotal || 10}
-- Chapters completed: ${syllabusDetails?.chaptersCompleted || 0}
-- Important chapters: ${syllabusDetails?.importantChapters || 'Not specified'}
-- High marks chapters: ${syllabusDetails?.highMarksChapters || 'Not specified'}
+═══════════════════════
+SUBJECT PRIORITY CALCULATION RULE
+═══════════════════════
+For each subject, calculate a Priority Score using these guidelines:
+Priority Score = Difficulty + Low Confidence + Low Marks + Remaining Chapters + Exam Urgency + Important Topics
+- Difficulty points: Hard = 15, Medium = 8, Easy = 2
+- Low Confidence points: (10 - subject's confidence level) * 2
+- Low Marks points: (100 - previous marks) * 0.2
+- Remaining Chapters points: (total chapters - completed chapters) * 1.5
+- Exam Urgency: if exam is within 10 days add 25, within 20 days add 15, within 30 days add 8, more than 30 days add 2
+- Important topics score: if notes/important chapters are specified, add 5 points.
 
-🎯 PERFORMANCE ANALYSIS
-- Previous marks / baseline performance: ${performanceAnalysis?.previousMarks || 'Not specified'}
-- Subject confidence levels (1-10): ${performanceAnalysis?.confidenceLevel || 5}
-- Hardest struggle topics: ${performanceAnalysis?.struggleTopics || 'Not specified'}
-- Mastered topics: ${performanceAnalysis?.masteredTopics || 'Not specified'}
+Rule:
+- Harder, weaker, and urgent subjects (high priority score) receive:
+  * More study hours in the schedule
+  * More frequent revision blocks
+  * Earlier (hardest first) scheduling during the day
+- Easier, confident subjects receive:
+  * Less study time
+  * Less repetition
 
-⏰ TIME MANAGEMENT
-- Daily study hours available: ${timeManagement?.dailyHours || 4}
-- Preferred study time: ${timeManagement?.preferredTime || 'Night'}
-- Max focus duration: ${timeManagement?.maxFocusDuration || 25} minutes
-- Break preference: ${timeManagement?.breakPreference || 5} minutes
+═══════════════════════
+EXAM CRISIS MODE RULE
+═══════════════════════
+For each subject:
+If Days Remaining is less than 14, AND the syllabus completed is less than 60% (more than 40% incomplete):
+- Activate "🚨 EXAM CRISIS MODE" for that subject.
+- This subject's riskLevel should be labeled as "high" (High Risk 🔴).
+- You MUST prioritize high-weight/important chapters, increase revision frequency, reduce low-priority topics, and focus on maximum possible marks.
+- Else: If syllabus completed is less than 80% or exam is within 30 days, set to "moderate" (Moderate 🟡). Otherwise, set to "safe" (Safe 🟢).
 
-📿 ROUTINE DETAILS
-- Wake-up time: ${routineDetails?.wakeUpTime || '05:00'}
-- Sleep time: ${routineDetails?.sleepTime || '22:00'}
-- Prayer schedule tracking enabled: ${routineDetails?.prayerEnabled ? 'Yes' : 'No'}
-
-📚 RESOURCES
-- Attached PDFs: ${resources?.pdfsUploadedCount || 0}
-- Attached notes: ${resources?.notesUploadedCount || 0}
-- Attached topic images: ${resources?.imagesUploadedCount || 0}
+═══════════════════════
+TIMETABLE SCHEDULING RULES (STRICT OVERLAP PREVENTION)
+═══════════════════════
+Study sessions MUST NEVER OVERLAP with:
+1. Prayer times (Fajr, Dhuhr, Asr, Maghrib, Isha)
+2. Meal times (Breakfast, Lunch, Dinner start and end ranges)
+3. Sleep time (Typical Sleep Time to Wake-Up Time)
+- Timetable blocks should be placed elegantly in between prayers.
+- Provide breaks matching the user's focus preferences.
+- Difficult subjects scheduled first. Weak subjects scheduled more often. Highly frequent revision sessions automatically scheduled.
 
 You MUST analyze this data thoroughly and respond with a JSON object fitting exactly the structure below. Return ONLY valid JSON:
 {
   "calculatedMetrics": {
-    "daysRemaining": 15,
-    "syllabusCompletionPercent": 40,
-    "subjectDifficultyScore": 8,
-    "weaknessScore": 7,
-    "confidenceScore": 5,
-    "revisionRequirement": "High priority active recall spaced every 2 days.",
-    "examReadinessScore": 62,
-    "riskLevel": "moderate" 
+    "daysRemaining": 15, // overall shortest countdown
+    "syllabusCompletionPercent": 40, // average chapters completed % across all subjects
+    "subjectDifficultyScore": 8, // average difficulty score
+    "weaknessScore": 7, // general weakness indicator (1-10)
+    "confidenceScore": 5, // average confidence (1-10)
+    "revisionRequirement": "Detailed Spaced Repetition Requirement phrase",
+    "examReadinessScore": 65, // calculate average readiness (1-100)
+    "riskLevel": "high" // overall risk Level matching highest risk subject
   },
-  "dailyStudyPlan": "A completely personalized daily timeline, dividing study blocks, sleep block, and prayer slots if enabled, structured with specific times (e.g. 05:30 AM - 07:00 AM) based on their routine details. Focus on study times and break preferrence.",
-  "weeklyStudyPlan": "Week-by-week actionable master priority guidelines and topic lists for the upcoming weeks until exams start.",
-  "monthlyStudyPlan": "A high-level strategic month-by-month outline or sprint mapping for longer timelines.",
-  "revisionSchedule": "Custom-designed spaced repetition intervals targeting their hardest struggle topics specifically.",
-  "examCrisisPlan": "Targeted emergency mitigation strategies. List what chapters to drop/condense, high-mark chapters to prioritize first, and cram intervals if they are high risk.",
+  "priorityRanking": [
+    {
+      "subjectName": "Mathematics",
+      "priorityScore": 38,
+      "riskStatus": "high", // 'high' | 'moderate' | 'safe'
+      "daysRemaining": 10,
+      "reason": "Highly difficult, exam is very close, and syllabus is mostly incomplete."
+    }
+  ],
+  "subjectCountdowns": [
+    {
+      "subjectName": "Mathematics",
+      "daysLeft": 10,
+      "riskStatus": "high", // 'high' | 'moderate' | 'safe'
+      "isCrisis": true,
+      "syllabusIncompletePercent": 50
+    }
+  ],
+  "dailyStudyPlan": "A highly styled, detailed daily timetable. Place study blocks between prayers, respecting meals and sleep time strictly (using the actual times provided in routine details above). Do NOT overlap study blocks with breakfast, lunch, dinner, Fajr, Dhuhr, Asr, Maghrib, Isha, or sleep times. Use specific time ranges, e.g. '06:00 AM - 07:30 AM: Physics Review'. Organize with markdown lists or tables.",
+  "weeklyStudyPlan": "A detailed week-by-week actionable progress and topics schema for all subjects, ordered by priority.",
+  "monthlyStudyPlan": "A strategic long-term monthly plan mapping sprint milestones.",
+  "revisionSchedule": "Spaced repetition intervals targeting high-priority/hard subjects more frequently and weaker areas specifically, showing automated revision block timings.",
+  "examCrisisPlan": "Specific crisis mode emergency directives for subjects in crisis state, advising which chapters to prioritize, dropping lower-weight chapters to secure maximum marks.",
   "priorityTopics": [
-    "Priority Topic 1: highly specific recommendation focusing on struggle topics / high-mark chapters",
-    "Priority Topic 2",
-    "Priority Topic 3"
+    "Priority 1: Subject Name - high-priority topics",
+    "Priority 2: Subject Name..."
   ],
   "aiRecommendations": [
-    "A highly action-oriented personal tip based on preferred study time and sleep schedule.",
-    "A recommendation based on resources available.",
-    "A spiritual or routine consistency recommendation."
+    "Actionable daily study tip",
+    "Time management/break recommendation",
+    "Sleep and routine synchronization tip"
   ]
 }
 
-The response must be carefully formatted in markdown where suitable (such as bolding and bullet lists within the text fields of dailyStudyPlan, weeklyStudyPlan, monthlyStudyPlan, revisionSchedule, and examCrisisPlan) so it renders beautifully. Output strictly raw JSON without markdown codeblock wrapper around the object, or if wrapped, make sure it is valid JSON.`;
+Ensure all generated schedules, count downs, revision sessions, and overlap guards use the student's actual uploaded dataset. Strictly return valid JSON. Do not return any wrap text outside the JSON block. Let markdown lists inside the text values look extremely beautiful.`;
 
         const response = await ai.models.generateContent({
           model: 'gemini-3.5-flash',
@@ -393,11 +444,11 @@ function getFallbackResponse(type: string, payload: any) {
           examReadinessScore: 65,
           riskLevel: "moderate"
         },
-        dailyStudyPlan: `**Fallback Baseline Daily Schedule**:\n\n*   **06:00 AM - 07:30 AM**: Heavy conceptual revision for ${payload?.academicDetails?.hardestSubject || 'Hardest topics'}.\n*   **01:30 PM - 03:00 PM**: Working out exercises & math equations.\n*   **08:00 PM - 09:30 PM**: Fast active recall testing and review of flashcards.`,
-        weeklyStudyPlan: `**Fallback Week-by-Week Breakdown**:\n\n*   **Week 1**: Focus purely on the fundamental lessons of ${payload?.academicDetails?.hardestSubject || 'your hardest subject'}.\n*   **Week 2**: Tackle past papers and mock multiple choice questions.\n*   **Week 3**: Final mock tests and targeted spaced repetition intervals.`,
-        monthlyStudyPlan: `**Fallback Monthly Milestones**:\n\n*   **Month 1**: Cover 75% of remaining syllabus lessons.\n*   **Month 2**: Active recall sprints, focus drills, and complete revision checklist.`,
-        revisionSchedule: `**Fallback Spaced Recall Spacing**:\n\n*   Review struggle topics after 1 day, 3 days, and 7 days. Use Flashcard matrices.`,
-        examCrisisPlan: `**Crisis Compression Plan**:\n\n*   Highlight and prioritize high-marks topics immediately.\n*   Compress minor chapters and delegate last 3 days before exams entirely to quick review loops.`,
+        dailyStudyPlan: "**Fallback Baseline Daily Schedule**:\n\n* **06:00 AM - 07:30 AM**: Heavy conceptual revision.\n* **01:30 PM - 03:00 PM**: Working out exercises and math equations.\n* **08:00 PM - 09:30 PM**: Fast active recall testing and review of flashcards.",
+        weeklyStudyPlan: "**Fallback Week-by-Week Breakdown**:\n\n* **Week 1**: Focus purely on fundamentals.\n* **Week 2**: Tackle past papers and mock multiple choice questions.\n* **Week 3**: Final mock tests and targeted spaced repetition intervals.",
+        monthlyStudyPlan: "**Fallback Monthly Milestones**:\n\n* **Month 1**: Cover 75 percent of remaining syllabus lessons.\n* **Month 2**: Active recall sprints, focus drills, and complete revision checklist.",
+        revisionSchedule: "**Fallback Spaced Recall Spacing**:\n\n* Review struggle topics after 1 day, 3 days, and 7 days. Use Flashcard matrices.",
+        examCrisisPlan: "**Crisis Compression Plan**:\n\n* Highlight and prioritize high-marks topics immediately.\n* Compress minor chapters and delegate last 3 days before exams entirely to quick review loops.",
         priorityTopics: [
           "Priority 1: Key milestones and important topics in " + (payload?.academicDetails?.hardestSubject || 'hardest subject'),
           "Priority 2: Practical formulas derivation challenges",

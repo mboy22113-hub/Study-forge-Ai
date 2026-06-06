@@ -49,6 +49,20 @@ export interface StudyPlan {
     examCrisisPlan: string;
     priorityTopics: string[];
     aiRecommendations: string[];
+    priorityRanking?: Array<{
+      subjectName: string;
+      priorityScore: number;
+      riskStatus: string; // 'safe' | 'moderate' | 'high'
+      daysRemaining: number;
+      reason: string;
+    }>;
+    subjectCountdowns?: Array<{
+      subjectName: string;
+      daysLeft: number;
+      riskStatus: string; // 'safe' | 'moderate' | 'high'
+      isCrisis: boolean;
+      syllabusIncompletePercent: number;
+    }>;
   };
 }
 

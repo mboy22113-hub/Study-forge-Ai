@@ -62,11 +62,11 @@ export default function AnalyticsPanel({
 
   const getHeatmapColor = (lvl: number) => {
     switch (lvl) {
-      case 4: return 'bg-blue-500';
-      case 3: return 'bg-blue-600/75';
-      case 2: return 'bg-blue-700/50';
-      case 1: return 'bg-blue-900/30';
-      default: return 'bg-slate-900/40';
+      case 4: return 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]';
+      case 3: return 'bg-cyan-500/75';
+      case 2: return 'bg-indigo-600/50';
+      case 1: return 'bg-indigo-950/40';
+      default: return 'bg-slate-900/30';
     }
   };
 
@@ -203,13 +203,13 @@ export default function AnalyticsPanel({
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 uppercase font-black tracking-widest pt-2 justify-end max-w-xl">
+          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 uppercase font-black tracking-widest pt-2 justify-end max-w-xl">
             <span>Less</span>
             <div className="w-3 h-3 rounded bg-slate-900 border border-white/5"></div>
-            <div className="w-3 h-3 rounded bg-blue-900/30"></div>
-            <div className="w-3 h-3 rounded bg-blue-700/50"></div>
-            <div className="w-3 h-3 rounded bg-blue-600/75"></div>
-            <div className="w-3 h-3 rounded bg-blue-500"></div>
+            <div className="w-3 h-3 rounded bg-indigo-950/40"></div>
+            <div className="w-3 h-3 rounded bg-indigo-600/50"></div>
+            <div className="w-3 h-3 rounded bg-cyan-500/75"></div>
+            <div className="w-3 h-3 rounded bg-cyan-400"></div>
             <span>More</span>
           </div>
         </div>
