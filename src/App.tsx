@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Sparkles, BookOpen, Compass, Zap, Clock, BarChart2, Trophy, Settings as SettingsIcon,
   Play, Pause, RotateCcw, Flame, Volume2, VolumeX, Plus, CheckCircle, HelpCircle, User,
@@ -20,16 +20,19 @@ import {
 
 // Import custom submodules
 import Sidebar from "./components/Sidebar";
-import PrayerHub from "./components/PrayerHub";
-import WakeUpHub from "./components/WakeUpHub";
-import PdfVault from "./components/PdfVault";
-import TopicGallery from "./components/TopicGallery";
-import SmartPriority from "./components/SmartPriority";
-import DopamineCentrals from "./components/DopamineCentrals";
-import AnalyticsPanel from "./components/AnalyticsPanel";
 import SplashAndLoading from "./components/SplashAndLoading";
-import SmartPlanner from "./components/SmartPlanner";
 import { motion, AnimatePresence } from "motion/react";
+
+// Performance-Optimized Lazy Loaded Sub-Components (Code Splitting and Progressive Hydration)
+const PrayerHub = React.lazy(() => import("./components/PrayerHub"));
+const WakeUpHub = React.lazy(() => import("./components/WakeUpHub"));
+const PdfVault = React.lazy(() => import("./components/PdfVault"));
+const TopicGallery = React.lazy(() => import("./components/TopicGallery"));
+const SmartPriority = React.lazy(() => import("./components/SmartPriority"));
+const DopamineCentrals = React.lazy(() => import("./components/DopamineCentrals"));
+const AnalyticsPanel = React.lazy(() => import("./components/AnalyticsPanel"));
+const SmartPlanner = React.lazy(() => import("./components/SmartPlanner"));
+const AICoach = React.lazy(() => import("./components/AICoach"));
 
 // Web Audio synthesizer for ambient neuro-focus beats
 class AmbientSynth {
@@ -390,7 +393,44 @@ export default function App() {
   });
 
   // Notifications alerts
-  const [notificationsAlerts, setNotificationsAlerts] = useState<Array<{ id: string; title: string; body: string; date: string }>>([]);
+  const [notificationsAlerts, setNotificationsAlerts] = useState<Array<{ id: string; title: string; body: string; date: string }>>(() => {
+    try {
+      const saved = localStorage.getItem("sf_notifications_alerts");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const triggerNotification = (title: string, message: string) => {
+    // 1. Browser Native
+    const isEnabled = notificationsEnabled;
+    if (isEnabled && typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        try {
+          new Notification(title, { body: message });
+        } catch (e) {
+          console.warn("Could not dispatch native notification:", e);
+        }
+      }
+    }
+    
+    // 2. Local State List (Persisted)
+    const newAlert = {
+      id: `alert-${Date.now()}`,
+      title,
+      body: message,
+      date: new Date().toLocaleTimeString() + " - " + new Date().toLocaleDateString()
+    };
+    setNotificationsAlerts(prev => {
+      const updated = [newAlert, ...prev];
+      localStorage.setItem("sf_notifications_alerts", JSON.stringify(updated));
+      return updated;
+    });
+
+    // 3. User Toast Alert so they visually see it in-app
+    showToast(`🔔 ${title}: ${message}`);
+  };
 
   // Toast alerts
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -474,6 +514,84 @@ export default function App() {
   useEffect(() => { localStorage.setItem("sf_achievements_v2", JSON.stringify(achievements)); }, [achievements]);
   useEffect(() => { localStorage.setItem("sf_focus_logs", JSON.stringify(focusLogs)); }, [focusLogs]);
 
+  // Dynamic SEO Optimization for Unique Page Titles and Descriptions
+  useEffect(() => {
+    const seoMap: Record<string, { title: string; desc: string }> = {
+      landing: {
+        title: "StudyForge AI - Smart Study Planner for Students",
+        desc: "AI-powered study planner, timetable generator, revision tracker, quiz creator, and exam preparation assistant for students."
+      },
+      dashboard: {
+        title: "Student Core Dashboard | StudyForge AI",
+        desc: "Track active study schedules, daily XP levels, overlap protection for prayers or meals, and daily cognitive metrics."
+      },
+      planner: {
+        title: "Interactive Smart Study Planner | StudyForge AI",
+        desc: "Register subjects, calculate urgency scores, log remaining chapters, and structure personalized scholastic timelines automatically."
+      },
+      coach: {
+        title: "AI Cognitive Study Coach | StudyForge AI",
+        desc: "Consult with our high-performance generative AI academic mentor. Generate quizzes, summarize syllabus text, or secure custom revision loops."
+      },
+      pdf_vault: {
+        title: "Interactive Student PDF Document Vault | StudyForge AI",
+        desc: "Upload or read your mock sheets, textbooks, or learning syllabi with inline focus tools and dynamic target chapter bindings."
+      },
+      topic_gallery: {
+        title: "Visual Topic Gallery & Deck | StudyForge AI",
+        desc: "Transform standard textual concepts into elegant visual illustrations, catalog complex chapters, and study with rich picture grids."
+      },
+      notes: {
+        title: "AI Active Recall Flashcards & Notes | StudyForge AI",
+        desc: "Create modular flashcards, summarize syllabus lectures with AI, and master topics through optimized study decks."
+      },
+      focus: {
+        title: "Deep Work Focus Timer & Clock | StudyForge AI",
+        desc: "Activate a modern, distraction-shielded academic timer with custom ambiance controls, and unlock academic achievements."
+      },
+      revision: {
+        title: "Spaced Recall Revision Tracker | StudyForge AI",
+        desc: "Keep revision sessions synced optimally with natural biological memory decay patterns to retain critical study chapters."
+      },
+      analytics: {
+        title: "Academic Analytics & Diagnostic Panel | StudyForge AI",
+        desc: "Inspect historical study metrics, log mock paper targets, and preview syllabus completion rates inside StudyForge."
+      },
+      notifications_tab: {
+        title: "Smart Study Notifications Center | StudyForge AI",
+        desc: "Manage automated study focus nudges, scheduled alerts, browser ticks, and custom desktop push dispatch triggers."
+      }
+    };
+
+    const currentSeo = seoMap[currentTab] || {
+      title: "StudyForge AI - Smart Study Planner for Students",
+      desc: "AI-powered study planner, timetable generator, revision tracker, quiz creator, and exam preparation assistant for students."
+    };
+
+    // Update document title
+    document.title = currentSeo.title;
+
+    // Update description meta tag
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute("content", currentSeo.desc);
+    }
+
+    // Update Open Graph tags dynamically for seamless sharing
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute("content", currentSeo.title);
+
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc) ogDesc.setAttribute("content", currentSeo.desc);
+
+    const twitterTitle = document.querySelector('meta[name="twitter:title"]');
+    if (twitterTitle) twitterTitle.setAttribute("content", currentSeo.title);
+
+    const twitterDesc = document.querySelector('meta[name="twitter:description"]');
+    if (twitterDesc) twitterDesc.setAttribute("content", currentSeo.desc);
+
+  }, [currentTab]);
+
   // Clock mechanics
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
@@ -526,7 +644,7 @@ export default function App() {
       awardXp(150);
       addCoins(25);
       logActivityToday();
-      notify("Focus wave complete!", "Ready for a refreshing break scholar?");
+      triggerNotification("Focus wave complete!", "Ready for a refreshing break scholar?");
       
       // Update quests currentValue
       setQuests(prev => prev.map(q => q.targetType === 'study_session' ? { ...q, currentValue: Math.min(q.currentValue + 1, q.targetValue) } : q));
@@ -586,6 +704,49 @@ export default function App() {
       }
     ];
   });
+
+  // Derived unified subjects list to feed into PDF vault, gallery, analytics etc.
+  const unifiedSubjects = useMemo(() => {
+    const list: AcademicSubject[] = [];
+    const seenNames = new Set<string>();
+
+    // 1. Add academic subjects from subjects database
+    (subjects || []).forEach((s) => {
+      if (s && s.title) {
+        list.push(s);
+        seenNames.add(s.title.toLowerCase().trim());
+      }
+    });
+
+    // 2. Add subjects from planner subjectsList
+    (subjectsList || []).forEach((s) => {
+      if (s && s.name) {
+        const name = s.name.trim();
+        const lowerName = name.toLowerCase();
+        if (!seenNames.has(lowerName)) {
+          seenNames.add(lowerName);
+          const tot = s.totalChapters === "" || s.totalChapters === undefined || isNaN(Number(s.totalChapters)) ? 8 : Number(s.totalChapters);
+          const comp = s.completedChapters === "" || s.completedChapters === undefined || isNaN(Number(s.completedChapters)) ? 0 : Number(s.completedChapters);
+          list.push({
+            id: `pl-${encodeURIComponent(name)}`,
+            title: name,
+            level: 'Undergraduate',
+            difficulty: s.difficultyLevel || 'Medium',
+            chapters: [],
+            remainingLessons: Math.max(0, tot - comp),
+            importantTopics: s.importantChapters ? String(s.importantChapters).split(",").map((x) => x.trim()) : [],
+            previousMarks: s.previousMarks === "" || s.previousMarks === undefined || isNaN(Number(s.previousMarks)) ? 70 : Number(s.previousMarks),
+            confidenceLevel: (s.confidenceLevel === "" || s.confidenceLevel === undefined || isNaN(Number(s.confidenceLevel)) ? 5 : Number(s.confidenceLevel)) * 10,
+            dailyStudyHours: s.desiredDailyHours === "" || s.desiredDailyHours === undefined || isNaN(Number(s.desiredDailyHours)) ? 2 : Number(s.desiredDailyHours),
+            examDate: s.examDate,
+            syllabusCompletionPercent: tot ? Math.min(100, Math.round((comp / tot) * 100)) : 20
+          });
+        }
+      }
+    });
+
+    return list;
+  }, [subjects, subjectsList]);
 
   const [routineData, setRoutineData] = useState(() => {
     const saved = localStorage.getItem("sf_planner_routine");
@@ -1481,6 +1642,12 @@ ${computedRankings.map((rk, idx) => `
           variants={appContainerVariants}
           className="flex-1 p-6 md:p-8 space-y-8 animate-fade-in"
         >
+          <React.Suspense fallback={
+            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+              <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-slate-400 text-xs font-mono tracking-widest animate-pulse uppercase">Forging Academic Workspace...</p>
+            </div>
+          }>
           
           {/* 1. Launch/Onboarding Pad tab */}
           {currentTab === "landing" && (
@@ -1612,267 +1779,34 @@ ${computedRankings.map((rk, idx) => `
               setStreak={setStreak}
               quests={quests}
               setQuests={setQuests}
+              onTriggerNotification={triggerNotification}
             />
           )}
 
           {/* 4. AI Study coach chat */}
           {currentTab === "coach" && (
-            <div className="space-y-6 max-w-4xl mx-auto flex flex-col md:h-[620px] h-auto bg-slate-950/20 border border-white/5 p-6 rounded-3xl animate-fadeIn">
-              {/* Top Controls: Subject Selection & Context Monitor */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-white/5 pb-4 items-center">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-widest text-[#93c5fd]">Active Focus Subject</span>
-                    {subjects.length === 0 && (
-                      <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/10 px-2 py-0.5 rounded-full font-bold">
-                        No subjects in profile yet
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <select
-                      value={currentChatSubject}
-                      onChange={(e) => {
-                        setCurrentChatSubject(e.target.value);
-                        setChatError(null);
-                      }}
-                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500/50"
-                    >
-                      <option value="General Study" className="bg-slate-950 text-slate-300">General Study Tips & Habits</option>
-                      {Array.from(new Set([
-                        ...subjects.map(s => s.title),
-                        ...subjectsList.map(s => s.name)
-                      ])).filter(Boolean).map((subjName) => {
-                        const sObj = subjects.find(s => s.title === subjName);
-                        const slObj = subjectsList.find(s => s.name === subjName);
-                        const level = sObj?.level || slObj?.difficultyLevel || "Medium";
-                        return (
-                          <option key={subjName} value={subjName} className="bg-slate-950 text-[#f1f5f9]">
-                            🎓 {subjName} ({level})
-                          </option>
-                        );
-                      })}
-                      <option value="Custom Focus" className="bg-slate-950 text-slate-300">✍️ Custom Topic focus...</option>
-                    </select>
-
-                    {currentChatSubject === "CustomFocus" || currentChatSubject === "Custom Focus" ? (
-                      <input
-                        type="text"
-                        value={customSubjectText}
-                        placeholder="Type topic..."
-                        className="w-40 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500/50 animate-fadeIn"
-                        onChange={(e) => setCustomSubjectText(e.target.value)}
-                      />
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* AI Context-Aware Parameter Monitor */}
-                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-wrap gap-2 items-center justify-between min-h-[50px]">
-                  {(() => {
-                    const activeSub = subjects.find(s => s.title === currentChatSubject);
-                    if (!activeSub) {
-                      return (
-                        <div className="text-[11px] text-slate-400 font-medium pl-1">
-                          🧠 Coach is tracking general focus. Start a conversation or select an academic subject.
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full text-center">
-                        <div className="bg-white/5 rounded-lg p-1.5 border border-white/5">
-                          <div className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Difficulty</div>
-                          <div className={`text-[11px] font-black uppercase tracking-wide mt-0.5 ${
-                            activeSub.difficulty === "Hard" ? "text-rose-400" : activeSub.difficulty === "Medium" ? "text-amber-400" : "text-emerald-400"
-                          }`}>{activeSub.difficulty}</div>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-1.5 border border-white/5">
-                          <div className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Confidence</div>
-                          <div className="text-[11px] text-white font-black mt-0.5">{activeSub.confidenceLevel}%</div>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-1.5 border border-white/5">
-                          <div className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Syllabus</div>
-                          <div className="text-[11px] text-purple-300 font-extrabold mt-0.5">{activeSub.syllabusCompletionPercent || 0}% Done</div>
-                        </div>
-                        <div className="bg-white/5 rounded-lg p-1.5 border border-white/5 col-span-1">
-                          <div className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Exam</div>
-                          <div className="text-[10px] text-blue-300 truncate font-black mt-0.5">
-                            {activeSub.examDate ? activeSub.examDate : "None"}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center h-96">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                <span className="ml-2 text-slate-400 text-xs font-bold">Unfolding Premium AI Coach interface...</span>
               </div>
-
-              {/* Chat Mode Switcher Row */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 block">Tutor Response Style</span>
-                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                  {[
-                    { id: "detailed", label: "Detailed", icon: "📖" },
-                    { id: "quick", label: "Quick Answer", icon: "⚡" },
-                    { id: "teacher", label: "Teacher Mode", icon: "🎓" },
-                    { id: "quiz", label: "Quiz Mode", icon: "📝" },
-                    { id: "flashcard", label: "Flashcard Mode", icon: "🧠" },
-                    { id: "exam", label: "Exam Prep", icon: "🎯" },
-                    { id: "motivation", label: "Motivation", icon: "🔥" },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => setChatMode(m.id as any)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 border capitalize ${
-                        chatMode === m.id
-                          ? "bg-blue-600/20 border-blue-500/40 text-blue-200 shadow-md shadow-blue-500/5"
-                          : "bg-white/5 border-white/5 text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      <span>{m.icon}</span>
-                      <span>{m.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Chat Message Box Container */}
-              <div className="flex-1 overflow-y-auto space-y-4 pr-1 py-1 min-h-[220px] max-h-[380px] bg-slate-900/10 rounded-2xl p-4 border border-white/5">
-                {chatMessages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500">
-                    <Sparkles className="w-10 h-10 text-slate-500/40 mb-3" />
-                    <p className="text-xs font-bold">Your dialogue stream with your mentor is currently empty.</p>
-                    <p className="text-[10px] mt-1">Select a subject & invoke any prompt helper button to initiate.</p>
-                  </div>
-                )}
-                {chatMessages.map((m, i) => (
-                  <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {m.role === 'model' && (
-                      <div className="w-7 h-7 rounded-lg bg-blue-900/40 border border-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-black shrink-0">
-                        AI
-                      </div>
-                    )}
-                    <div className={`p-4 rounded-2xl max-w-lg leading-relaxed ${
-                      m.role === 'user'
-                        ? 'bg-blue-600/90 border border-blue-500/20 text-white rounded-br-none text-xs font-bold shadow-lg shadow-blue-600/5'
-                        : 'bg-[#0f0f15]/90 border border-white/5 rounded-bl-none shadow-md'
-                    }`}>
-                      {m.role === 'user' ? (
-                        <p>{m.content}</p>
-                      ) : (
-                        <div className="markdown-body">
-                          {renderMarkdownContent(m.content)}
-                        </div>
-                      )}
-                    </div>
-                    {m.role === 'user' && (
-                      <div className="w-7 h-7 rounded-lg bg-slate-800 border border-white/10 text-slate-300 flex items-center justify-center text-[10px] font-black shrink-0">
-                        ME
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {isChatLoading && (
-                  <div className="flex items-center gap-3 justify-start animate-pulse">
-                    <div className="w-7 h-7 rounded-lg bg-blue-900/20 border border-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    </div>
-                    <div className="bg-[#0f0f15]/50 border border-white/5 rounded-2xl p-4 rounded-bl-none text-xs text-slate-400 font-bold max-w-xs flex items-center gap-2">
-                      🧠 AI is processing cognitive schema & tutor insights...
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Interactive Quick Action Buttons row */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 block">Tutor Quick Assistant Helpers</span>
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-                  {[
-                    { label: "Explain Topic", icon: "📚", mode: "detailed" as const, text: "Explain the key concepts and formulas clearly." },
-                    { label: "Create Quiz", icon: "📝", mode: "quiz" as const, text: "Create an active recall multiple-choice quiz." },
-                    { label: "Exam Questions", icon: "🎯", mode: "exam" as const, text: "Give me likely exam questions & derivations." },
-                    { label: "Generate Flashcards", icon: "🧠", mode: "flashcard" as const, text: "Give me a deck of active recall flashcards." },
-                    { label: "Summarize Notes", icon: "📄", mode: "detailed" as const, text: "Summarize the core syllabus chapters of this topic." },
-                    { label: "Motivate Me", icon: "🔥", mode: "motivation" as const, text: "Give me study motivation & habit advice." },
-                    { label: "Today's Focus", icon: "📅", mode: "detailed" as const, text: "Suggest study sequences and what to focus on today." },
-                  ].map((act, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      disabled={isChatLoading}
-                      onClick={() => {
-                        const targetSub = currentChatSubject === "General Study" ? "my current study load" : currentChatSubject;
-                        const formattedPrompt = `[${act.label} request for ${targetSub}] - ${act.text}`;
-                        handleSendCoachMessage(undefined, formattedPrompt, act.mode);
-                      }}
-                      className="px-3 py-1.5 bg-white/[0.02] border border-white/5 hover:border-blue-500/20 hover:bg-white/5 rounded-xl text-xs text-slate-300 font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                    >
-                      <span>{act.icon}</span>
-                      <span>{act.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Chat Error Handling Status with Retry Inline */}
-              {chatError && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-100 p-3.5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs w-full animate-fadeIn">
-                  <span className="flex items-center gap-2">
-                    <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" />
-                    <span>{chatError}</span>
-                  </span>
-                  <button
-                    onClick={handleRetryLastMessage}
-                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-black flex items-center gap-1.5 cursor-pointer text-[11px]"
-                  >
-                    <RefreshCw className="w-3 h-3" /> Retry Last Message
-                  </button>
-                </div>
-              )}
-
-              {/* Form Input Sender & Reset Option */}
-              <div className="flex gap-2">
-                <form onSubmit={handleSendCoachMessage} className="flex-1 flex gap-2">
-                  <input
-                    type="text"
-                    value={coachInputs}
-                    onChange={(e) => setCoachInputs(e.target.value)}
-                    placeholder={
-                      currentChatSubject === "General Study"
-                        ? "Ask about learning strategies, active recall, or ask academic questions..."
-                        : currentChatSubject === "Custom Focus"
-                        ? `Ask a question about ${customSubjectText || 'your custom topic'}...`
-                        : `Ask a question about ${currentChatSubject}...`
-                    }
-                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-blue-500/50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!coachInputs.trim() || isChatLoading}
-                    className="px-5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:border-slate-800/10 rounded-xl text-white transition-all cursor-pointer flex items-center justify-center shrink-0"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </form>
-
-                <button
-                  type="button"
-                  title="Clear conversation"
-                  onClick={() => {
-                    if (window.confirm("Are you sure you want to clear conversation history?")) {
-                      setChatMessages([
-                        { role: "model", content: "Chat history cleared. Select a subject and study style to begin a new dialogue stream with your StudyForge AI Coach!" }
-                      ]);
-                      setChatError(null);
-                    }
-                  }}
-                  className="px-3 bg-white/5 border border-white/10 hover:border-red-500/20 hover:text-red-400 rounded-xl text-slate-400 transition-all cursor-pointer flex items-center justify-center shrink-0"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            }>
+              <AICoach
+                subjects={subjects}
+                subjectsList={subjectsList}
+                studyPlans={studyPlans}
+                routineData={routineData}
+                pdfs={pdfs}
+                xp={xp}
+                setXp={setXp}
+                coins={coins}
+                setCoins={setCoins}
+                streak={streak}
+                goals={goals}
+                userName={userName}
+                onTriggerNotification={triggerNotification}
+              />
+            </React.Suspense>
           )}
 
           {/* 5. Subjects catalogs */}
@@ -1892,7 +1826,7 @@ ${computedRankings.map((rk, idx) => `
             <div className="space-y-6 max-w-4xl mx-auto">
               <PdfVault 
                 pdfs={pdfs}
-                subjects={subjects}
+                subjects={unifiedSubjects}
                 onUploadPdf={handleUploadPdf}
                 onUpdatePdfPage={handleUpdatePdfPage}
                 onUpdatePdfReadingTime={handleUpdatePdfReadingTime}
@@ -1908,7 +1842,7 @@ ${computedRankings.map((rk, idx) => `
             <div className="space-y-6 max-w-4xl mx-auto">
               <TopicGallery 
                 images={galleryImages}
-                subjects={subjects}
+                subjects={unifiedSubjects}
                 onAddImage={handleAddGalleryImage}
                 onRenameImage={handleRenameGalleryImage}
                 onDeleteImage={handleDeleteGalleryImage}
@@ -2083,7 +2017,7 @@ ${computedRankings.map((rk, idx) => `
           {currentTab === "analytics" && (
             <div className="space-y-6 max-w-4xl mx-auto">
               <AnalyticsPanel 
-                subjects={subjects}
+                subjects={unifiedSubjects}
                 focusSessions={[]}
                 prayers={prayerDays}
               />
@@ -2332,6 +2266,7 @@ ${computedRankings.map((rk, idx) => `
             </div>
           )}
 
+          </React.Suspense>
         </motion.div>
       </div>
 

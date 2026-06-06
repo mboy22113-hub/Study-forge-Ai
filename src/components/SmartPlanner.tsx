@@ -36,6 +36,7 @@ interface SmartPlannerProps {
   setStreak: React.Dispatch<React.SetStateAction<number>>;
   quests: Quest[];
   setQuests: React.Dispatch<React.SetStateAction<Quest[]>>;
+  onTriggerNotification?: (title: string, message: string) => void;
 }
 
 export default function SmartPlanner({
@@ -65,7 +66,8 @@ export default function SmartPlanner({
   streak,
   setStreak,
   quests,
-  setQuests
+  setQuests,
+  onTriggerNotification
 }: SmartPlannerProps) {
 
   // Questionnaire Wizard Stage
@@ -1045,10 +1047,11 @@ export default function SmartPlanner({
                               <input
                                 type="number"
                                 min="1"
-                                value={subject.totalChapters || 1}
+                                value={subject.totalChapters !== undefined && subject.totalChapters !== "" && !isNaN(subject.totalChapters) ? subject.totalChapters : ""}
                                 onChange={(e) => {
+                                  const val = e.target.value;
                                   const updated = [...subjectsList];
-                                  updated[index].totalChapters = Math.max(1, parseInt(e.target.value, 10));
+                                  updated[index].totalChapters = val === "" ? "" : Math.max(1, parseInt(val, 10));
                                   setSubjectsList(updated);
                                 }}
                                 className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
@@ -1060,10 +1063,11 @@ export default function SmartPlanner({
                                 type="number"
                                 min="0"
                                 max={subject.totalChapters || 10}
-                                value={subject.completedChapters || 0}
+                                value={subject.completedChapters !== undefined && subject.completedChapters !== "" && !isNaN(subject.completedChapters) ? subject.completedChapters : ""}
                                 onChange={(e) => {
+                                  const val = e.target.value;
                                   const updated = [...subjectsList];
-                                  updated[index].completedChapters = Math.max(0, parseInt(e.target.value, 10));
+                                  updated[index].completedChapters = val === "" ? "" : Math.max(0, parseInt(val, 10));
                                   setSubjectsList(updated);
                                 }}
                                 className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
@@ -1137,10 +1141,11 @@ export default function SmartPlanner({
                                 type="number"
                                 min="0"
                                 max="100"
-                                value={subject.previousMarks || 0}
+                                value={subject.previousMarks !== undefined && subject.previousMarks !== "" && !isNaN(subject.previousMarks) ? subject.previousMarks : ""}
                                 onChange={(e) => {
+                                  const val = e.target.value;
                                   const updated = [...subjectsList];
-                                  updated[index].previousMarks = Math.max(0, parseInt(e.target.value, 10));
+                                  updated[index].previousMarks = val === "" ? "" : Math.max(0, parseInt(val, 10));
                                   setSubjectsList(updated);
                                 }}
                                 className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
@@ -1152,10 +1157,11 @@ export default function SmartPlanner({
                               <input
                                 type="number"
                                 min="10"
-                                value={subject.readingTime || 30}
+                                value={subject.readingTime !== undefined && subject.readingTime !== "" && !isNaN(subject.readingTime) ? subject.readingTime : ""}
                                 onChange={(e) => {
+                                  const val = e.target.value;
                                   const updated = [...subjectsList];
-                                  updated[index].readingTime = Math.max(10, parseInt(e.target.value, 10));
+                                  updated[index].readingTime = val === "" ? "" : Math.max(10, parseInt(val, 10));
                                   setSubjectsList(updated);
                                 }}
                                 className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-xs text-white"
@@ -1673,8 +1679,12 @@ export default function SmartPlanner({
                             const randomAlert = sampleAlerts[Math.floor(Math.random() * sampleAlerts.length)];
                             
                             // Send real notification
-                            if ("Notification" in window && Notification.permission === "granted") {
-                              new Notification("StudyForge Coach Alert", { body: randomAlert });
+                            if (onTriggerNotification) {
+                              onTriggerNotification("StudyForge Coach Alert", randomAlert);
+                            } else if ("Notification" in window && Notification.permission === "granted") {
+                              try {
+                                new Notification("StudyForge Coach Alert", { body: randomAlert });
+                              } catch (e) {}
                             }
                             
                             // Add to local panel

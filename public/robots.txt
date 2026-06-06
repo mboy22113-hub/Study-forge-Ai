@@ -1,0 +1,12 @@
+# Robots.txt for StudyForge AI
+# Allowed for indexing to maximize search engine ranking
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /dashboard/backup
+Disallow: /settings
+
+# Canonical Sitemap link for search crawlers
+Sitemap: https://studyforge-ai.vercel.app/sitemap.xml

@@ -1,9 +1,26 @@
 {
   "version": 2,
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "/api"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/favicon.svg",
+      "destination": "/favicon.svg"
+    },
+    {
+      "source": "/og-image.png",
+      "destination": "/og-image.png"
     },
     {
       "source": "/(.*)",

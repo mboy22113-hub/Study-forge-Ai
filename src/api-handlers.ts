@@ -258,7 +258,8 @@ FORMATING RULES:
         // Filter out any leading model messages, and ensure alternating turns start with 'user'
         let chatHistory = (messages || []).map((m: any) => ({
           role: m.role === 'user' ? 'user' : 'model',
-          content: m.content || m.text || ''
+          content: m.content || m.text || '',
+          imageUrl: m.imageUrl || null
         }));
 
         // Find the first user message index to ensure history starts with 'user'
@@ -270,12 +271,38 @@ FORMATING RULES:
         }
 
         // Map to Gemini parts and filter adjacent messages of the same role
-        const intermediateContents = chatHistory.map((m: any) => ({
-          role: m.role as 'user' | 'model',
-          parts: [{ text: m.content }]
-        }));
+        const intermediateContents = chatHistory.map((m: any) => {
+          const parts: any[] = [];
+          
+          if (m.imageUrl) {
+            let mimeType = "image/jpeg";
+            let base64Data = m.imageUrl;
+            
+            if (m.imageUrl.startsWith("data:")) {
+              const matches = m.imageUrl.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/);
+              if (matches && matches.length === 3) {
+                mimeType = matches[1];
+                base64Data = matches[2];
+              }
+            }
+            
+            parts.push({
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Data
+              }
+            });
+          }
+          
+          parts.push({ text: m.content || " " });
+          
+          return {
+            role: m.role as 'user' | 'model',
+            parts: parts
+          };
+        });
 
-        const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+        const contents: Array<{ role: 'user' | 'model'; parts: Array<any> }> = [];
         for (const item of intermediateContents) {
           if (contents.length === 0) {
             if (item.role === 'user') {
@@ -284,8 +311,8 @@ FORMATING RULES:
           } else {
             const lastItem = contents[contents.length - 1];
             if (lastItem.role === item.role) {
-              // Same role consecutive turn: concatenate content
-              lastItem.parts[0].text += "\n" + item.parts[0].text;
+              // Same role consecutive turn: append parts
+              lastItem.parts.push(...item.parts);
             } else {
               contents.push(item);
             }

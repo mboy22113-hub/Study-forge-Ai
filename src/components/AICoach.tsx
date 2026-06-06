@@ -1,0 +1,1918 @@
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { 
+  Plus, 
+  Search, 
+  Pin, 
+  Trash2, 
+  Edit, 
+  Download, 
+  Share2, 
+  MoreVertical, 
+  Send, 
+  RotateCcw, 
+  AlertOctagon, 
+  RefreshCw, 
+  Sparkles, 
+  Loader2, 
+  Copy, 
+  Check, 
+  ChevronRight, 
+  ChevronLeft, 
+  BookOpen, 
+  GraduationCap, 
+  Brain, 
+  Target, 
+  HelpCircle, 
+  Activity, 
+  Layers, 
+  Clipboard, 
+  Lightbulb, 
+  Menu, 
+  X,
+  Volume2,
+  Calendar,
+  Zap,
+  Flame,
+  ArrowRight,
+  Image
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { AcademicSubject, StudyPlan, QuizQuestion, Flashcard } from "../types";
+
+// ChatSession schema for unlimited history and automatic persistence
+interface ChatSession {
+  id: string;
+  title: string;
+  subject: string;
+  chatMode: "quick" | "detailed" | "teacher" | "quiz" | "flashcard" | "exam" | "motivation";
+  customSubjectText?: string;
+  messages: Array<{ 
+    role: "user" | "model"; 
+    content: string; 
+    timestamp: string; 
+    imageUrl?: string;
+  }>;
+  isPinned: boolean;
+  createdAt: string; // ISO String
+  updatedAt: string; // ISO String
+}
+
+interface AICoachProps {
+  subjects: AcademicSubject[];
+  subjectsList: any[];
+  studyPlans: StudyPlan[];
+  routineData: any;
+  pdfs: any[];
+  xp: number;
+  setXp: React.Dispatch<React.SetStateAction<number>>;
+  coins: number;
+  setCoins: React.Dispatch<React.SetStateAction<number>>;
+  streak: number;
+  goals: any[];
+  userName: string;
+  onTriggerNotification: (title: string, msg: string) => void;
+}
+
+export default function AICoach({
+  subjects,
+  subjectsList,
+  studyPlans,
+  routineData,
+  pdfs,
+  xp,
+  setXp,
+  coins,
+  setCoins,
+  streak,
+  goals,
+  userName,
+  onTriggerNotification
+}: AICoachProps) {
+  // 1. Core Conversations State & Hydration
+  const [conversations, setConversations] = useState<ChatSession[]>(() => {
+    try {
+      const saved = localStorage.getItem("sf_ai_conversations_v3");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error("Error reading sf_ai_conversations_v3 from localStorage", e);
+    }
+
+    // Default Starting Conversation to pre-populate beautifully
+    const introSession: ChatSession = {
+      id: "sf_session_init",
+      title: "🎓 Welcome to StudyForge AI Coach!",
+      subject: "General Study",
+      chatMode: "detailed",
+      isPinned: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          role: "model",
+          content: "Hello! I am your StudyForge AI Coach, your personal academic assistant and mentor. How can I help you master your studies today? You can select any subject, change study modes (like Quiz, Flashcards, or Teacher Mode), or choose a quick action helper below!",
+          timestamp: new Date().toISOString()
+        }
+      ]
+    };
+    return [introSession];
+  });
+
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => {
+    if (conversations.length > 0) {
+      return conversations[0].id;
+    }
+    return "sf_session_init";
+  });
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [coachInput, setCoachInput] = useState("");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitleText, setEditTitleText] = useState("");
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null); // For three-dots dropdown
+  const [copiedMessageIdx, setCopiedMessageIdx] = useState<number | null>(null);
+  const [activeVoiceMessageIdx, setActiveVoiceMessageIdx] = useState<number | null>(null);
+
+  // Focus and quick custom subject text
+  const [customSubjectText, setCustomSubjectText] = useState("");
+
+  // AI Vision states & Handlers
+  const [uploadedImageBase64, setUploadedImageBase64] = useState<string | null>(null);
+  const [uploadedImageName, setUploadedImageName] = useState<string>("");
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Check type: JPG, PNG, WEBP
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      onTriggerNotification("Invalid Format", "⚠️ StudyForge AI Coach only parses JPG, PNG, and WEBP image assets.");
+      return;
+    }
+    
+    // Size check matching 10MB limit
+    if (file.size > 10 * 1024 * 1024) {
+      onTriggerNotification("File Too Large", "⚠️ Image size must be smaller than 10MB to optimize analytical parsing.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUploadedImageBase64(reader.result as string);
+      setUploadedImageName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      onTriggerNotification("Invalid Format", "⚠️ StudyForge AI Coach only parses JPG, PNG, and WEBP image assets.");
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      setUploadedImageBase64(reader.result as string);
+      setUploadedImageName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Active Session object computed
+  const activeSession = useMemo(() => {
+    return conversations.find((c) => c.id === activeSessionId) || conversations[0];
+  }, [conversations, activeSessionId]);
+
+  // Sync to localStorage automatically
+  useEffect(() => {
+    localStorage.setItem("sf_ai_conversations_v3", JSON.stringify(conversations));
+  }, [conversations]);
+
+  // Click outside listener to close the three-dots dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setActiveMenuId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Auto scroll to latest message
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [activeSession?.messages?.length, isChatLoading]);
+
+  // XP and coin rewards
+  const awardXp = (amount: number) => {
+    setXp((prev) => {
+      const next = prev + amount;
+      localStorage.setItem("sf_xp", next.toString());
+      return next;
+    });
+  };
+
+  const addCoins = (amount: number) => {
+    setCoins((prev) => {
+      const next = prev + amount;
+      localStorage.setItem("sf_coins", next.toString());
+      return next;
+    });
+  };
+
+  // Preset prompts for key study coach features
+  const presetFeatures = [
+    {
+      title: "Explain Concepts",
+      desc: "Get simple explanations & intuitive analogies",
+      prompt: "Can you explain the main theories of this topic using a real-world analogy first, and then map it into academic details?",
+      icon: <Layers className="w-4 h-4 text-purple-400" />
+    },
+    {
+      title: "Generate Quizzes",
+      desc: "Challenge your model with recall questions",
+      prompt: "Please generate an active recall multiple-choice quiz with 5 key conceptual questions. Include four options (A,B,C,D) for each, but do not outline the explanations until I try to answer them!",
+      icon: <HelpCircle className="w-4 h-4 text-blue-400" />
+    },
+    {
+      title: "Create Flashcards",
+      desc: "Build front-and-back study decks",
+      prompt: "Generate a set of 5 highly useful Flashcard style question/answer pairs for today's active recall revision.",
+      icon: <Brain className="w-4 h-4 text-emerald-400" />
+    },
+    {
+      title: "Create Study Plans",
+      desc: "Map outstanding syllabus elements",
+      prompt: "Create an adaptive scholastic study plan timeline for this topic. Give estimated hour allocations, specific focus concepts, and a strategic master overview.",
+      icon: <Calendar className="w-4 h-4 text-amber-400" />
+    },
+    {
+      title: "Analyze Weakspots",
+      desc: "Spot knowledge gaps & exam risks",
+      prompt: "Help me analyze my potential weakspots in this topic. What are the common points of misunderstanding or exam slip-ups students usually struggle with?",
+      icon: <Activity className="w-4 h-4 text-rose-400" />
+    },
+    {
+      title: "Step-by-Step Solver",
+      desc: "Trace and solve formula problems",
+      prompt: "Please act as a meticulous step-by-step math and science problem solver. Walk me through resolving a standard numerical or conceptual formula step by step.",
+      icon: <Zap className="w-4 h-4 text-indigo-400" />
+    },
+    {
+      title: "Exam Strategies",
+      desc: "Get optimal grade weighting hacks",
+      prompt: "Provide a rigorous exam preparation checklist. Suggest specific strategies on how to maximize marks under timed stress.",
+      icon: <Target className="w-4 h-4 text-pink-400" />
+    },
+    {
+      title: "Study Techniques",
+      desc: "Learn active recall & Pomodoro loops",
+      prompt: "What scientific learning techniques (e.g. Feynman technique, spaced recall, Pomodoro cycles) would work best to digest this material quickly?",
+      icon: <Lightbulb className="w-4 h-4 text-teal-400" />
+    }
+  ];
+
+  // Dynamic grouping helpers for conversations
+  const filteredConversations = useMemo(() => {
+    let list = conversations;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.title.toLowerCase().includes(q) ||
+          c.subject.toLowerCase().includes(q) ||
+          c.messages.some((m) => m.content.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [conversations, searchQuery]);
+
+  const pinedConversations = useMemo(() => {
+    return filteredConversations.filter((c) => c.isPinned);
+  }, [filteredConversations]);
+
+  const nonPinnedConversations = useMemo(() => {
+    return filteredConversations.filter((c) => !c.isPinned);
+  }, [filteredConversations]);
+
+  const groupedConversations = useMemo(() => {
+    const today: ChatSession[] = [];
+    const thisWeek: ChatSession[] = [];
+    const older: ChatSession[] = [];
+
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(now.getDate() - 7);
+
+    nonPinnedConversations.forEach((c) => {
+      const cDate = new Date(c.updatedAt);
+      if (cDate.toDateString() === todayStr) {
+        today.push(c);
+      } else if (cDate > oneWeekAgo) {
+        thisWeek.push(c);
+      } else {
+        older.push(c);
+      }
+    });
+
+    // Sort within cohorts by last updated (descending)
+    const sorter = (a: ChatSession, b: ChatSession) => 
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+
+    return {
+      today: today.sort(sorter),
+      thisWeek: thisWeek.sort(sorter),
+      older: older.sort(sorter)
+    };
+  }, [nonPinnedConversations]);
+
+  // Conversational API Dispatch
+  const handleSendCoachMessage = async (
+    e?: React.FormEvent,
+    customUserMsg?: string,
+    forcedMode?: ChatSession["chatMode"]
+  ) => {
+    if (e) e.preventDefault();
+
+    const userMsg = (customUserMsg || coachInput).trim();
+    const hasImage = !!uploadedImageBase64;
+    
+    if ((!userMsg && !hasImage) || isChatLoading) return;
+
+    const finalMsg = userMsg || (hasImage ? "Please analyze this uploaded visual material." : "");
+
+    if (!customUserMsg) {
+      setCoachInput("");
+    }
+
+    // Capture uploaded image reference and clear immediately for clean UI
+    const capturedImage = uploadedImageBase64;
+    setUploadedImageBase64(null);
+    setUploadedImageName("");
+
+    setChatError(null);
+    const activeSessionObj = activeSession;
+    const activeSubject = activeSessionObj.subject;
+    const activeMode = forcedMode || activeSessionObj.chatMode;
+
+    const userMessageObj = {
+      role: "user" as const,
+      content: finalMsg,
+      timestamp: new Date().toISOString(),
+      ...(capturedImage ? { imageUrl: capturedImage } : {})
+    };
+
+    // Append message to active session
+    const updatedMessages = [...activeSessionObj.messages, userMessageObj];
+
+    // Optimistically update conversation and refresh updatedAt timestamp
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeSessionObj.id
+          ? {
+              ...c,
+              messages: updatedMessages,
+              chatMode: activeMode,
+              updatedAt: new Date().toISOString(),
+              // If it's a first real message title generator we can auto rename it later or preserve
+              title: c.title === "New Conversation" || c.id === "sf_session_init" && c.title === "🎓 Welcome to StudyForge AI Coach!"
+                ? generateShortTitle(finalMsg)
+                : c.title
+            }
+          : c
+      )
+    );
+
+    setIsChatLoading(true);
+
+    try {
+      const response = await fetch("/api/gemini/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "chat",
+          payload: {
+            messages: updatedMessages.map((m) => ({ 
+              role: m.role, 
+              content: m.content,
+              imageUrl: m.imageUrl || null
+            })),
+            currentSubject: activeSubject === "Custom Focus" ? (activeSessionObj.customSubjectText || customSubjectText || "Custom Academic Topic") : activeSubject,
+            chatMode: activeMode,
+            profileContext: {
+              username: userName || "Scholar",
+              streak: streak,
+              xp: xp,
+              subjectsList: subjectsList,
+              goalsList: goals,
+              studyPlansList: studyPlans,
+              routine: routineData,
+              pdfsCount: pdfs.length
+            }
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to obtain a response from StudyForge AI server.");
+      }
+
+      const data = await response.json();
+      if (!data || !data.text) {
+        throw new Error("AI core returned empty output.");
+      }
+
+      const modelMessageObj = {
+        role: "model" as const,
+        content: data.text,
+        timestamp: new Date().toISOString()
+      };
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeSessionObj.id
+            ? {
+                ...c,
+                messages: [...c.messages, modelMessageObj],
+                updatedAt: new Date().toISOString()
+              }
+            : c
+        )
+      );
+
+      // Award XP for learning dialogue
+      awardXp(30);
+      addCoins(10);
+      onTriggerNotification(
+        "AI Coach Insight",
+        "🧠 Coach feedback digested successfully! +30 XP +10 Coins"
+      );
+
+    } catch (err: any) {
+      console.error("[CHAT LOG ERROR]:", err);
+      setChatError(err.message || "An error occurred. Check your network or API settings.");
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Title generator helper for aesthetic previews
+  const generateShortTitle = (msg: string): string => {
+    const clean = msg.replace(/^\[.*?\]\s*-\s*/, "").trim();
+    if (clean.length <= 26) return clean;
+    return clean.substring(0, 24) + "...";
+  };
+
+  // Conversational Retry Handler
+  const handleRetryLastMessage = async () => {
+    const messages = activeSession.messages;
+    const lastUserIdx = [...messages].reverse().findIndex((m) => m.role === "user");
+    if (lastUserIdx === -1) return;
+
+    const realIdx = messages.length - 1 - lastUserIdx;
+    const lastUserMsg = messages[realIdx].content;
+
+    // Remove any model messages trailing behind
+    const slicedMessages = messages.slice(0, realIdx + 1);
+
+    setChatError(null);
+    setIsChatLoading(true);
+
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeSession.id
+          ? {
+              ...c,
+              messages: slicedMessages,
+              updatedAt: new Date().toISOString()
+            }
+          : c
+      )
+    );
+
+    try {
+      const response = await fetch("/api/gemini/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "chat",
+          payload: {
+            messages: slicedMessages.map((m) => ({ 
+              role: m.role, 
+              content: m.content,
+              imageUrl: m.imageUrl || null
+            })),
+            currentSubject: activeSession.subject === "Custom Focus" ? (activeSession.customSubjectText || customSubjectText) : activeSession.subject,
+            chatMode: activeSession.chatMode,
+            profileContext: {
+              username: userName || "Scholar",
+              streak: streak,
+              xp: xp,
+              subjectsList: subjectsList,
+              goalsList: goals,
+              studyPlansList: studyPlans,
+              routine: routineData,
+              pdfsCount: pdfs.length
+            }
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to obtain a response from StudyForge AI server.");
+      }
+
+      const data = await response.json();
+      if (!data || !data.text) {
+        throw new Error("AI core returned empty output.");
+      }
+
+      const modelMessageObj = {
+        role: "model" as const,
+        content: data.text,
+        timestamp: new Date().toISOString()
+      };
+
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeSession.id
+            ? {
+                ...c,
+                messages: [...c.messages, modelMessageObj],
+                updatedAt: new Date().toISOString()
+              }
+            : c
+        )
+      );
+
+      awardXp(30);
+    } catch (err: any) {
+      console.error("[RETRY LOG ERROR]:", err);
+      setChatError(err.message || "An error occurred during retry.");
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // Session Manager Actions
+  const handleCreateNewChat = (customSubject?: string) => {
+    const newSession: ChatSession = {
+      id: "sf_session_" + Date.now(),
+      title: customSubject ? `🎓 ${customSubject} Study` : "New Conversation",
+      subject: customSubject || "General Study",
+      chatMode: "detailed",
+      isPinned: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          role: "model",
+          content: `Hi there ${userName || "Scholar"}! I have structured a dedicated study environment for "${customSubject || "General study queries"}". Tell me, what formulas, concepts, or assignments shall we tackle next?`,
+          timestamp: new Date().toISOString()
+        }
+      ]
+    };
+
+    setConversations((prev) => [newSession, ...prev]);
+    setActiveSessionId(newSession.id);
+    setIsMobileSidebarOpen(false);
+    setChatError(null);
+  };
+
+  const handleTogglePin = (sessionId: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === sessionId ? { ...c, isPinned: !c.isPinned, updatedAt: new Date().toISOString() } : c))
+    );
+    setActiveMenuId(null);
+  };
+
+  const handleDeleteChat = (sessionId: string) => {
+    if (conversations.length <= 1) {
+      alert("⚠️ You must retain at least one conversation in your study log.");
+      return;
+    }
+    const filtered = conversations.filter((c) => c.id !== sessionId);
+    setConversations(filtered);
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(filtered[0].id);
+    }
+    setActiveMenuId(null);
+  };
+
+  const startRenameSession = (sessionId: string, currentTitle: string) => {
+    setEditingSessionId(sessionId);
+    setEditTitleText(currentTitle);
+    setActiveMenuId(null);
+  };
+
+  const finishRenameSession = (sessionId: string) => {
+    if (editTitleText.trim() === "") return;
+    setConversations((prev) =>
+      prev.map((c) => (c.id === sessionId ? { ...c, title: editTitleText.trim(), updatedAt: new Date().toISOString() } : c))
+    );
+    setEditingSessionId(null);
+  };
+
+  const handleClearConversation = (sessionId: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === sessionId
+          ? {
+              ...c,
+              messages: [
+                {
+                  role: "model",
+                  content: "Conversation history cleared successfully. Select a subject & study mode to begin a fresh learning stream!",
+                  timestamp: new Date().toISOString()
+                }
+              ],
+              updatedAt: new Date().toISOString()
+            }
+          : c
+      )
+    );
+    setActiveMenuId(null);
+    setChatError(null);
+  };
+
+  // Export Chat Logic (Markdown vs JSON)
+  const handleExportChat = (sessionId: string, format: "markdown" | "json") => {
+    const target = conversations.find((c) => c.id === sessionId);
+    if (!target) return;
+
+    let content = "";
+    let fileExtension = "";
+    let mimeType = "";
+
+    if (format === "markdown") {
+      content = `# StudyForge AI Chat Log: ${target.title}\n`;
+      content += `*Active Subject: ${target.subject}* | *Mode: ${target.chatMode}*\n`;
+      content += `*Timestamps: Created ${new Date(target.createdAt).toLocaleString()} | Updated ${new Date(target.updatedAt).toLocaleString()}*\n\n`;
+      content += `-------\n\n`;
+
+      target.messages.forEach((m) => {
+        const title = m.role === "user" ? `🧑 Student (${userName || "Scholar"})` : "🧠 StudyForge AI Coach";
+        content += `### ${title} - [${new Date(m.timestamp).toLocaleTimeString()}]\n\n${m.content}\n\n`;
+      });
+
+      fileExtension = "md";
+      mimeType = "text/markdown;charset=utf-8;";
+    } else {
+      content = JSON.stringify(target, null, 2);
+      fileExtension = "json";
+      mimeType = "application/json;charset=utf-8;";
+    }
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `studyforge_chat_${target.title.replace(/\s+/g, "_").toLowerCase()}.${fileExtension}`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setActiveMenuId(null);
+  };
+
+  // Direct context helper prompts from three-dots menu
+  const handleActionOnTopMsg = (actionKey: "summary" | "quiz" | "flashcards" | "notes") => {
+    if (isChatLoading) return;
+    setActiveMenuId(null);
+
+    let query = "";
+    switch (actionKey) {
+      case "summary":
+        query = "[Generate Summary] - Please examine our current conversation history above and provide a concise, structured master summary detailing the core definitions, concepts, and key equations we addressed.";
+        break;
+      case "quiz":
+        query = "[Generate Quiz From Chat] - Let's test my recall! Please create a brand new 3-question multiple choice challenge (A, B, C, D) based only on the facts and information we have discussed in this conversation.";
+        break;
+      case "flashcards":
+        query = "[Create Flashcards From Chat] - Generate a set of card pairs (Question on front, Answer on back) derived directly from our focus subject discussion today so I can index them.";
+        break;
+      case "notes":
+        query = "[Convert Chat To Notes] - Transform our dialogue into an elegant, bulleted cheat-sheet revision brief. Include bold categories, key formulas, and helpful mnemonics.";
+        break;
+    }
+
+    handleSendCoachMessage(undefined, query);
+  };
+
+  // Message Actions
+  const handleCopyMessageText = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMessageIdx(index);
+    setTimeout(() => setCopiedMessageIdx(null), 2000);
+  };
+
+  const handleShareClipboard = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(`Studying with StudyForge AI! Master concepts with active recall guides inside: ${url}`);
+    alert("🔗 Share link representing your study space was copied to your clipboard!");
+    setActiveMenuId(null);
+  };
+
+  // Mock Text-to-Speech simulation helper
+  const handleSpeakTextAlert = (text: string, index: number) => {
+    if (activeVoiceMessageIdx === index) {
+      // Toggle off if clicking same message
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setActiveVoiceMessageIdx(null);
+      return;
+    }
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // Stop playing anything else
+      // Clean markdown characters for voice synthesis
+      const cleanText = text
+        .replace(/[\*\#\`\-\_]/g, "")
+        .replace(/\[.*?\]/g, "")
+        .substring(0, 300); // Read first 300 chars for mock previews
+      
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = 1.0;
+      utterance.onend = () => {
+        setActiveVoiceMessageIdx(null);
+      };
+      utterance.onerror = () => {
+        setActiveVoiceMessageIdx(null);
+      };
+      setActiveVoiceMessageIdx(index);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert("🔊 Speech synthesis is not supported in this browser version.");
+    }
+  };
+
+  // Subject selector updating active session parameters
+  const updateSessionSubject = (sub: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeSessionId
+          ? {
+              ...c,
+              subject: sub,
+              customSubjectText: sub === "Custom Focus" ? customSubjectText : undefined,
+              updatedAt: new Date().toISOString()
+            }
+          : c
+      )
+    );
+  };
+
+  const updateSessionMode = (mode: ChatSession["chatMode"]) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeSessionId
+          ? {
+              ...c,
+              chatMode: mode,
+              updatedAt: new Date().toISOString()
+            }
+          : c
+      )
+    );
+  };
+
+  // Custom renderer for robust student-grade markdown with embedded syntax codeblocks
+  const renderRichMarkdown = (text: string) => {
+    if (!text) return null;
+
+    // Split blocks based on triple backticks for code block visualization
+    const blocks = text.split(/(\`\`\`[a-zA-Z0-9]*\n[\s\S]*?\n\`\`\`)/);
+
+    return (
+      <div className="space-y-3 text-[13px] text-slate-300 font-medium leading-relaxed">
+        {blocks.map((block, bIdx) => {
+          // Check if code block
+          if (block.startsWith("```")) {
+            const match = block.match(/^\`\`\`([a-zA-Z0-9]*)\n([\s\S]*?)\n\`\`\`$/);
+            const language = match ? match[1] || "code" : "code";
+            const codeContent = match ? match[2] : block.replace(/^\`\`\`|\`\`\`$/g, "");
+
+            return (
+              <div key={bIdx} className="rounded-xl overflow-hidden border border-white/10 bg-slate-950/80 my-3 font-mono">
+                <div className="flex bg-white/[0.04] px-4 py-2 text-xs text-slate-400 items-center justify-between border-b border-white/5 uppercase tracking-wider font-extrabold text-[10px]">
+                  <span>💻 {language}</span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(codeContent)}
+                    className="flex gap-1 hover:text-white transition-all text-slate-500 font-bold"
+                  >
+                    <Clipboard className="w-3 h-3" /> Copy
+                  </button>
+                </div>
+                <pre className="p-4 overflow-x-auto text-xs text-indigo-200 select-text leading-tight">{codeContent}</pre>
+              </div>
+            );
+          }
+
+          // Otherwise parse regular lines (lists, bold tags, headers)
+          const lines = block.split("\n");
+          return (
+            <div key={bIdx} className="space-y-2">
+              {lines.map((line, idx) => {
+                const cleaned = line.trim();
+                if (!cleaned) return <div key={idx} className="h-1"></div>;
+
+                // Check bullet
+                const isBullet = cleaned.startsWith("*") || cleaned.startsWith("-");
+                const cleanText = cleaned.replace(/^[\*\-]\s*/, "");
+
+                // Parse inline backticks first: `text`
+                const partsForCode = cleanText.split(/(\`[^\`]+\`)/);
+                const inlineParsed = partsForCode.map((part, pI) => {
+                  if (part.startsWith("`") && part.endsWith("`")) {
+                    return (
+                      <code key={pI} className="bg-white/10 border border-white/5 px-1.5 py-0.5 rounded text-indigo-300 font-mono text-[11px] font-bold">
+                        {part.slice(1, -1)}
+                      </code>
+                    );
+                  }
+                  
+                  // Parse bold inside normal parts
+                  const partsForBold = part.split("**");
+                  return partsForBold.map((sub, i) =>
+                    i % 2 !== 0 ? (
+                      <strong key={i} className="text-white font-black">
+                        {sub}
+                      </strong>
+                    ) : (
+                      sub
+                    )
+                  );
+                });
+
+                if (isBullet) {
+                  return (
+                    <div key={idx} className="flex items-start gap-2.5 pl-2.5">
+                      <span className="text-purple-400 mt-2 shrink-0 block w-1.5 h-1.5 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50"></span>
+                      <p className="flex-1 text-slate-300 leading-relaxed">{inlineParsed}</p>
+                    </div>
+                  );
+                } else if (cleaned.startsWith("###")) {
+                  return (
+                    <h4 key={idx} className="text-xs font-black text-purple-400 mt-5 first:mt-0 uppercase tracking-widest border-l-2 border-purple-500/50 pl-2">
+                      {inlineParsed}
+                    </h4>
+                  );
+                } else if (cleaned.startsWith("##")) {
+                  return (
+                    <h3 key={idx} className="text-sm font-black text-slate-100 mt-6 first:mt-0 tracking-wide border-b border-white/5 pb-1">
+                      {inlineParsed}
+                    </h3>
+                  );
+                } else if (cleaned.startsWith("#")) {
+                  return (
+                    <h2 key={idx} className="text-base font-black text-white mt-6 first:mt-0 tracking-tight">
+                      {inlineParsed}
+                    </h2>
+                  );
+                } else {
+                  return (
+                    <p key={idx} className="leading-relaxed text-slate-300 pl-1">
+                      {inlineParsed}
+                    </p>
+                  );
+                }
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Computed time strings
+  const getUpdateFormattedDate = (isoStr: string) => {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div id="ai-coach-full-width-adaptive" className="max-w-7xl mx-auto flex flex-col md:flex-row h-[780px] bg-slate-950/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl relative">
+      
+      {/* ================= BAR BUTTON MOBILE TRIGGER ============== */}
+      <div className="absolute top-4 left-4 z-50 md:hidden">
+        <button
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="p-2.5 bg-slate-900 border border-white/10 rounded-xl text-white outline-none active:bg-slate-800"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* ========================================================= */}
+      {/* ================= SIDEBAR (LEFT SECTION) ================= */}
+      {/* ========================================================= */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#08080c] border-r border-white/5 p-5 flex flex-col transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
+          isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:flex"
+        }`}
+      >
+        {/* Mobile Sidebar Close Button */}
+        <div className="flex md:hidden justify-end mb-2">
+          <button
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="p-1.5 text-slate-400 hover:text-white rounded"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Brand / New Chat Header Container */}
+        <div className="flex flex-col space-y-4 mb-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-widest text-indigo-400 pl-1 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> StudyForge AI Coach
+            </span>
+            <span className="text-[9px] bg-indigo-500/10 text-indigo-300 border border-indigo-400/10 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest animate-pulse">
+              Core PRO
+            </span>
+          </div>
+
+          <button
+            onClick={() => handleCreateNewChat()}
+            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-black tracking-wide transition-all shadow-lg hover:shadow-indigo-500/15 shrink-0 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Start New Chat
+          </button>
+        </div>
+
+        {/* Live Filter Search Conversations */}
+        <div className="relative mb-5 shrink-0">
+          <Search className="absolute left-3.5 top-2.5 w-3.5 h-3.5 text-slate-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search study chats..."
+            className="w-full bg-white/[0.03] border border-white/10 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 transition-all font-medium"
+          />
+        </div>
+
+        {/* Scrolling Conversations Cohorts */}
+        <div className="flex-1 overflow-y-auto space-y-6 scrollbar-none pr-1">
+          {/* Pinned Section */}
+          {pinedConversations.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#93c5fd] flex items-center gap-1 pl-1">
+                <Pin className="w-3 h-3 text-sky-400 fill-sky-400" /> Pinned Chats
+              </span>
+              <div className="space-y-1">
+                {pinedConversations.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setActiveSessionId(c.id);
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                      activeSessionId === c.id
+                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
+                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex-1 truncate pr-2">
+                      {editingSessionId === c.id ? (
+                        <input
+                          type="text"
+                          value={editTitleText}
+                          onChange={(e) => setEditTitleText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
+                          onBlur={() => finishRenameSession(c.id)}
+                          autoFocus
+                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="truncate flex items-center gap-1.5">
+                          <span className="shrink-0">💬</span>
+                          <span>{c.title}</span>
+                        </div>
+                      )}
+                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                        {c.subject} · {c.messages.length} notes
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePin(c.id);
+                        }}
+                        title="Unpin"
+                        className="p-1 text-slate-400 hover:text-[#93c5fd] rounded transition-all"
+                      >
+                        <Pin className="w-3 h-3 text-sky-400 fill-sky-400" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteChat(c.id);
+                        }}
+                        title="Delete"
+                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Today Cohort */}
+          {groupedConversations.today.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1 block">
+                Today
+              </span>
+              <div className="space-y-1">
+                {groupedConversations.today.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setActiveSessionId(c.id);
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                      activeSessionId === c.id
+                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
+                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex-1 truncate pr-2">
+                      {editingSessionId === c.id ? (
+                        <input
+                          type="text"
+                          value={editTitleText}
+                          onChange={(e) => setEditTitleText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
+                          onBlur={() => finishRenameSession(c.id)}
+                          autoFocus
+                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="truncate flex items-center gap-1.5">
+                          <span className="shrink-0 text-slate-500">💬</span>
+                          <span>{c.title}</span>
+                        </div>
+                      )}
+                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                        {c.subject} · {c.messages.length} notes
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePin(c.id);
+                        }}
+                        title="Pin Chat"
+                        className="p-1 text-slate-400 hover:text-sky-400 rounded transition-all"
+                      >
+                        <Pin className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteChat(c.id);
+                        }}
+                        title="Delete Chat"
+                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* This Week Cohort */}
+          {groupedConversations.thisWeek.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1 block">
+                This Week
+              </span>
+              <div className="space-y-1">
+                {groupedConversations.thisWeek.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setActiveSessionId(c.id);
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                      activeSessionId === c.id
+                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
+                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex-1 truncate pr-2">
+                      {editingSessionId === c.id ? (
+                        <input
+                          type="text"
+                          value={editTitleText}
+                          onChange={(e) => setEditTitleText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
+                          onBlur={() => finishRenameSession(c.id)}
+                          autoFocus
+                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="truncate flex items-center gap-1.5">
+                          <span className="shrink-0 text-slate-500">💬</span>
+                          <span>{c.title}</span>
+                        </div>
+                      )}
+                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                        {c.subject} · {c.messages.length} notes
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePin(c.id);
+                        }}
+                        title="Pin Chat"
+                        className="p-1 text-slate-400 hover:text-sky-400 rounded transition-all"
+                      >
+                        <Pin className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteChat(c.id);
+                        }}
+                        title="Delete Chat"
+                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Older Cohort */}
+          {groupedConversations.older.length > 0 && (
+            <div className="space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1 block">
+                Older
+              </span>
+              <div className="space-y-1">
+                {groupedConversations.older.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setActiveSessionId(c.id);
+                      setIsMobileSidebarOpen(false);
+                    }}
+                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                      activeSessionId === c.id
+                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
+                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="flex-1 truncate pr-2">
+                      {editingSessionId === c.id ? (
+                        <input
+                          type="text"
+                          value={editTitleText}
+                          onChange={(e) => setEditTitleText(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
+                          onBlur={() => finishRenameSession(c.id)}
+                          autoFocus
+                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="truncate flex items-center gap-1.5">
+                          <span className="shrink-0 text-slate-500">💬</span>
+                          <span>{c.title}</span>
+                        </div>
+                      )}
+                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                        {c.subject} · {c.messages.length} notes
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePin(c.id);
+                        }}
+                        title="Pin Chat"
+                        className="p-1 text-slate-400 hover:text-sky-400 rounded transition-all"
+                      >
+                        <Pin className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteChat(c.id);
+                        }}
+                        title="Delete Chat"
+                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {filteredConversations.length === 0 && (
+            <div className="text-center py-6 text-slate-500 text-xs">
+              😭 No conversations found
+            </div>
+          )}
+        </div>
+
+        {/* ================= QUICK ACCESS SEGMENTS ================= */}
+        <div className="border-t border-white/5 pt-4 mt-4 space-y-4 shrink-0">
+          {/* 1. Revision / Register Subjects Index */}
+          <div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-1 block mb-1.5">
+              Subject Focus Hub
+            </span>
+            <div className="max-h-24 overflow-y-auto space-y-1 scrollbar-none">
+              <button
+                onClick={() => handleCreateNewChat("General Study Tips")}
+                className="w-full text-left p-1.5 hover:bg-white/5 rounded-lg text-[11px] text-indigo-300 font-bold truncate flex items-center gap-1.5"
+              >
+                🎓 General Study Tips
+              </button>
+              {Array.from(new Set([
+                ...subjects.map(s => s.title),
+                ...subjectsList.map(s => s.name)
+              ])).filter(Boolean).map((subjName) => (
+                <button
+                  key={subjName}
+                  onClick={() => handleCreateNewChat(subjName)}
+                  className="w-full text-left p-1.5 hover:bg-white/5 rounded-lg text-[11px] text-slate-400 hover:text-white font-semibold truncate flex items-center gap-1.5"
+                >
+                  📖 {subjName}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. Active Strategy Plans */}
+          <div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-1 block mb-1.5">
+              Current Micro Strategies
+            </span>
+            <div className="max-h-20 overflow-y-auto space-y-1 scrollbar-none">
+              {studyPlans && studyPlans.length > 0 ? (
+                studyPlans.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      handleCreateNewChat(p.subject);
+                      setTimeout(() => {
+                        handleSendCoachMessage(
+                          undefined,
+                          `Give me an optimized breakdown of my active Study Plan milestone titles for "${p.subject}". Structure my upcoming week goals.`
+                        );
+                      }, 200);
+                    }}
+                    className="w-full text-left p-1.5 hover:bg-white/5 rounded-lg text-[10px] text-indigo-200/80 font-bold truncate flex items-center gap-1 border border-white/5 bg-white/[0.01]"
+                  >
+                    🎯 {p.subject} ({p.progress || 0}% plan progress)
+                  </button>
+                ))
+              ) : (
+                <span className="text-[10px] text-slate-600 pl-1 block">No blueprints active.</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+      {/* ========================================================= */}
+      {/* ================= CONVERSATION PANEL (MAIN) ============= */}
+      {/* ========================================================= */}
+      <section className="flex-1 flex flex-col bg-[#0b0c10] overflow-hidden">
+        
+        {/* ================= CONVERSATION HEADER ================= */}
+        <header className="px-6 py-4 border-b border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0 bg-[#08080c] z-30 pt-16 sm:pt-4">
+          
+          {/* Active Title & Info */}
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-indigo-400 shrink-0 hidden sm:block" />
+            <div className="truncate">
+              <h2 className="text-sm font-black text-white tracking-tight flex items-center gap-1.5 truncate">
+                {editingSessionId === activeSession.id ? (
+                  <input
+                    type="text"
+                    value={editTitleText}
+                    onChange={(e) => setEditTitleText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && finishRenameSession(activeSession.id)}
+                    onBlur={() => finishRenameSession(activeSession.id)}
+                    autoFocus
+                    className="bg-slate-900 border border-indigo-500 rounded px-2 py-0.5 text-xs text-white max-w-sm"
+                  />
+                ) : (
+                  <span>{activeSession.title}</span>
+                )}
+                {activeSession.isPinned && (
+                  <Pin className="w-3 h-3 text-sky-400 fill-sky-400 shrink-0" />
+                )}
+              </h2>
+              <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mt-1 flex items-center gap-1">
+                <span>Active subject: </span>
+                <span className="text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full font-black text-[9px]">
+                  {activeSession.subject}
+                </span>
+                <span>Mode: </span>
+                <span className="text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full font-black text-[9px]">
+                  {activeSession.chatMode}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* Active Context Selections & 3-Dots Dropdown Trigger */}
+          <div className="flex flex-wrap items-center gap-2">
+            
+            {/* Focus Subject dropdown */}
+            <select
+              value={activeSession.subject}
+              onChange={(e) => {
+                const updatedVal = e.target.value;
+                updateSessionSubject(updatedVal);
+                if (updatedVal !== "Custom Focus") {
+                  setCustomSubjectText("");
+                }
+              }}
+              className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-[11px] text-[#f1f5f9] outline-none focus:border-indigo-500/50 transition-all font-black"
+            >
+              <option value="General Study" className="bg-slate-950 text-slate-300">🎓 General Study & Habits</option>
+              {Array.from(new Set([
+                ...subjects.map(s => s.title),
+                ...subjectsList.map(s => s.name)
+              ])).filter(Boolean).map((subjName) => {
+                const sObj = subjects.find(s => s.title === subjName);
+                const level = sObj?.level || "Medium";
+                return (
+                  <option key={subjName} value={subjName} className="bg-slate-950 text-[#f1f5f9]">
+                    🎓 {subjName}
+                  </option>
+                );
+              })}
+              <option value="Custom Focus" className="bg-slate-950 text-indigo-300 font-extrabold">✍️ Custom Topic focus...</option>
+            </select>
+
+            {activeSession.subject === "Custom Focus" && (
+              <input
+                type="text"
+                value={activeSession.customSubjectText || customSubjectText}
+                placeholder="Topic text..."
+                className="w-28 bg-white/5 border border-white/10 rounded-xl px-2.5 py-1 text-[11px] text-white outline-none focus:border-indigo-500/50 animate-fadeIn"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomSubjectText(val);
+                  setConversations(prev => prev.map(c => c.id === activeSessionId ? { ...c, customSubjectText: val } : c));
+                }}
+              />
+            )}
+
+            {/* Response Mode Selector */}
+            <select
+              value={activeSession.chatMode}
+              onChange={(e) => updateSessionMode(e.target.value as any)}
+              className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-[11px] text-[#22c55e] outline-none focus:border-indigo-500/50 transition-all font-black capitalize"
+            >
+              <option value="detailed" className="bg-slate-950 text-slate-300">📖 Detailed Explainer</option>
+              <option value="quick" className="bg-slate-950 text-slate-300">⚡ Quick Answer</option>
+              <option value="teacher" className="bg-slate-950 text-slate-300">🎓 Analogy/Teacher Mode</option>
+              <option value="quiz" className="bg-slate-950 text-slate-300">📝 Quiz Mode</option>
+              <option value="flashcard" className="bg-slate-950 text-slate-300">🧠 Flashcard Matcher</option>
+              <option value="exam" className="bg-slate-950 text-slate-300">🎯 Exam Prep Mode</option>
+              <option value="motivation" className="bg-slate-950 text-slate-300">🔥 Motivational Drive</option>
+            </select>
+
+            {/* THREE DOTS DROPDOWN CONTAINER */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setActiveMenuId(activeMenuId === activeSession.id ? null : activeSession.id)}
+                className="p-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-slate-300 cursor-pointer transition-all"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              <AnimatePresence>
+                {activeMenuId === activeSession.id && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 mt-2 w-56 bg-[#0f0f15] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 text-[11px] text-slate-300 space-y-1"
+                  >
+                    <button
+                      onClick={() => handleCreateNewChat()}
+                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-indigo-400"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Start New Study Chat
+                    </button>
+                    <button
+                      onClick={() => startRenameSession(activeSession.id, activeSession.title)}
+                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2"
+                    >
+                      <Edit className="w-3.5 h-3.5 text-slate-400" /> Rename Conversation
+                    </button>
+                    <button
+                      onClick={() => handleTogglePin(activeSession.id)}
+                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2"
+                    >
+                      <Pin className="w-3.5 h-3.5 text-[#93c5fd]" /> {activeSession.isPinned ? "Unpin Study Chat" : "Pin Study Chat"}
+                    </button>
+                    <button
+                      onClick={() => handleShareClipboard()}
+                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-emerald-400" /> Share Invitation
+                    </button>
+                    <div className="border-t border-white/5 my-1" />
+                    
+                    {/* Export Actions */}
+                    <button
+                      onClick={() => handleExportChat(activeSession.id, "markdown")}
+                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-slate-200"
+                    >
+                      <Download className="w-3.5 h-3.5 text-indigo-400" /> Export Chat (.md)
+                    </button>
+                    <button
+                      onClick={() => handleExportChat(activeSession.id, "json")}
+                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-slate-200"
+                    >
+                      <Download className="w-3.5 h-3.5 text-purple-400" /> Export Chat (.json)
+                    </button>
+                    
+                    <button
+                      onClick={() => handleClearConversation(activeSession.id)}
+                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-amber-400"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Clear Discussion
+                    </button>
+                    
+                    <div className="border-t border-white/5 my-1" />
+                    <span className="text-[9px] text-slate-500 font-extrabold uppercase px-2 block py-0.5">Prompt Accelerations</span>
+                    <button
+                      onClick={() => handleActionOnTopMsg("summary")}
+                      className="w-full text-left p-2 hover:bg-indigo-500/10 text-indigo-300 rounded-lg font-black flex items-center gap-2"
+                    >
+                      📚 Generate Summary Of Chat
+                    </button>
+                    <button
+                      onClick={() => handleActionOnTopMsg("quiz")}
+                      className="w-full text-left p-2 hover:bg-blue-500/10 text-blue-300 rounded-lg font-black flex items-center gap-2"
+                    >
+                      📝 Generate Quiz From Session
+                    </button>
+                    <button
+                      onClick={() => handleActionOnTopMsg("flashcards")}
+                      className="w-full text-left p-2 hover:bg-emerald-500/10 text-emerald-300 rounded-lg font-black flex items-center gap-2"
+                    >
+                      🧠 Create Flashcards From Session
+                    </button>
+                    <button
+                      onClick={() => handleActionOnTopMsg("notes")}
+                      className="w-full text-left p-2 hover:bg-pink-500/10 text-pink-300 rounded-lg font-black flex items-center gap-2"
+                    >
+                      📄 Convert Chat into Student Notes
+                    </button>
+
+                    <div className="border-t border-white/5 my-1" />
+                    <button
+                      onClick={() => handleDeleteChat(activeSession.id)}
+                      className="w-full text-left p-2 hover:bg-red-500/10 rounded-lg font-bold flex items-center gap-2 text-rose-400"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Study Chat
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+          </div>
+
+        </header>
+
+        {/* ================= CHAT CONVERSATION HISTORY (MAIN PORTION) ================= */}
+        <div 
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`flex-1 overflow-y-auto px-6 py-6 space-y-6 scroll-smooth bg-gradient-to-b from-[#0b0c10] to-[#06070a] relative ${
+            isDraggingOver ? "outline-2 outline-dashed outline-indigo-500/50 bg-[#0c0d15]" : ""
+          }`}
+        >
+          {isDraggingOver && (
+            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm border border-indigo-500/30 rounded-2xl flex flex-col items-center justify-center pointer-events-none z-50 animate-fadeIn">
+              <div className="p-4 rounded-full bg-indigo-600/20 mb-3 border border-indigo-500/30">
+                <Image className="w-8 h-8 text-indigo-400 animate-bounce" />
+              </div>
+              <p className="text-sm font-black text-white uppercase tracking-wider pl-1">Drop file to attach!</p>
+              <p className="text-[11px] text-slate-400 mt-1">StudyForge AI supports JPG, PNG, and WEBP notes & screenshots</p>
+            </div>
+          )}
+          
+          {activeSession.messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500 max-w-lg mx-auto">
+              <Sparkles className="w-12 h-12 text-[#6366f1]/20 mb-4 animate-pulse" />
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Your study dialogue is blank</p>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-sm mt-2">
+                Ask doubts, formulate physics solvers, analyze notes, or pick one of the core academic tutoring prompt assistants below to jump in!
+              </p>
+            </div>
+          )}
+
+          {/* Render Active messages list */}
+          {activeSession.messages.map((m, i) => (
+            <div
+              key={i}
+              className={`flex items-start gap-4 ${
+                m.role === "user" ? "flex-row-reverse" : "flex-row"
+              }`}
+            >
+              {/* Avatar Icon */}
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border text-[11px] font-black tracking-tighter ${
+                  m.role === "user"
+                    ? "bg-indigo-600/20 border-indigo-500/30 text-indigo-300 shadow-md shadow-indigo-500/5"
+                    : "bg-slate-900 border-white/5 text-purple-400"
+                }`}
+              >
+                {m.role === "user" ? "ME" : "SF"}
+              </div>
+
+              {/* Message Bubble Frame */}
+              <div
+                className={`relative group max-w-2xl px-5 py-4 rounded-2xl shadow-xl transition-all ${
+                  m.role === "user"
+                    ? "bg-[#181a26]/90 border border-indigo-500/10 text-slate-100 rounded-tr-none text-[13px] font-semibold"
+                    : "bg-[#0b0c11]/80 border border-white/5 rounded-tl-none"
+                }`}
+              >
+                {/* Message Content */}
+                {m.role === "user" ? (
+                  <div className="space-y-3">
+                    {m.imageUrl && (
+                      <div className="relative overflow-hidden rounded-xl border border-white/10 max-h-64 bg-black/40 flex justify-center items-center shadow-inner">
+                        <img 
+                          src={m.imageUrl} 
+                          alt="Uploaded material" 
+                          className="max-h-64 max-w-full object-contain rounded-xl shadow-lg border border-white/5 hover:scale-[1.02] transition-transform duration-300"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    )}
+                    <p className="whitespace-pre-wrap select-text selection:bg-indigo-500/30 font-semibold">{m.content}</p>
+                  </div>
+                ) : (
+                  renderRichMarkdown(m.content)
+                )}
+
+                {/* Bubble Footer Utilities (Speaker and Copy Buttons) */}
+                <div
+                  className={`mt-3 flex items-center gap-3 border-t border-white/5 pt-2.5 text-[10px] uppercase font-black tracking-widest transition-opacity ${
+                    m.role === "user" ? "text-indigo-400/60" : "text-slate-500/80"
+                  }`}
+                >
+                  <span>{getUpdateFormattedDate(m.timestamp)}</span>
+                  
+                  {/* Copy Button */}
+                  <button
+                    onClick={() => handleCopyMessageText(m.content, i)}
+                    className="hover:text-white flex items-center gap-1 transition-all"
+                    title="Copy to clipboard"
+                  >
+                    {copiedMessageIdx === i ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span className="text-emerald-400 font-bold">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Read Aloud Text-to-Speech simulation helper */}
+                  <button
+                    onClick={() => handleSpeakTextAlert(m.content, i)}
+                    className={`hover:text-white flex items-center gap-1 transition-all ${
+                      activeVoiceMessageIdx === i ? "text-indigo-400" : ""
+                    }`}
+                    title="Speak text aloud"
+                  >
+                    <Volume2 className="w-3 h-3" />
+                    <span>{activeVoiceMessageIdx === i ? "Stop Voice" : "Listen Speak"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* AI Generation State Container with detailed loader log lines */}
+          {isChatLoading && (
+            <div className="flex items-start gap-4 animate-pulse">
+              <div className="w-9 h-9 rounded-xl bg-purple-900/40 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0 text-xs font-black">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              </div>
+              <div className="bg-[#0c0d16]/90 border border-purple-500/10 rounded-2xl p-5 rounded-tl-none font-bold text-xs max-w-md">
+                <div className="flex items-center gap-2 text-purple-300">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-spin" />
+                  <span>StudyForge AI Coach is thinking...</span>
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium select-none">
+                  Processing academic schema weights, context metadata, and tutoring mode heuristics...
+                </p>
+                
+                {/* Pulsing Dots typing animation */}
+                <div className="flex items-center gap-1.5 mt-3 pl-1">
+                  <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce duration-300" style={{ animationDelay: "0ms" }}></span>
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce duration-300" style={{ animationDelay: "150ms" }}></span>
+                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce duration-300" style={{ animationDelay: "300ms" }}></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Interactive Bento guide if chat is just starting for onboarding academic features */}
+          {activeSession.messages.length <= 1 && !isChatLoading && (
+            <div className="pt-6 border-t border-white/5 space-y-4">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 block">
+                🧠 Forge Scholastic Excellence (AI Presets)
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {presetFeatures.map((feat, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isChatLoading}
+                    onClick={() => {
+                      const subjectTitle = activeSession.subject === "General Study" ? "all active registry loads" : activeSession.subject;
+                      const constructedPrompt = `[${feat.title} request for ${subjectTitle}] - ${feat.prompt}`;
+                      handleSendCoachMessage(undefined, constructedPrompt);
+                    }}
+                    className="p-4 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 hover:border-indigo-500/20 rounded-2xl text-left transition-all group flex items-start gap-3.5 cursor-pointer disabled:opacity-40 select-none hover:shadow-lg"
+                  >
+                    <div className="p-2.5 bg-slate-900 border border-white/5 group-hover:border-indigo-500/20 rounded-xl transition-all shadow-inner">
+                      {feat.icon}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-200 group-hover:text-indigo-400 transition-all uppercase tracking-wide">
+                        {feat.title}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 mt-1 font-semibold leading-relaxed">
+                        {feat.desc}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* ================= CHAT ERROR STATUS WITH RETRY OPTIONS ============== */}
+        {chatError && (
+          <div className="px-6 py-3.5 bg-red-950/20 border-y border-red-500/20 text-red-200 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
+            <span className="flex items-center gap-2">
+              <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{chatError}</span>
+            </span>
+            <button
+              onClick={handleRetryLastMessage}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-black flex items-center gap-1 text-[10px] uppercase tracking-wider cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Retry Last Message
+            </button>
+          </div>
+        )}
+
+        {/* ================= CONVERSATION UTILITIES & QUICK ACTION BUTTONS HUB ================= */}
+        <footer className="p-6 bg-[#08080c] border-t border-white/5 shrink-0 z-10 space-y-4">
+          
+          {/* Image Upload Preview Bar */}
+          <AnimatePresence>
+            {uploadedImageBase64 && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="p-3 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-2xl"
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="w-12 h-12 rounded-xl bg-black/40 border border-white/5 overflow-hidden flex items-center justify-center shrink-0">
+                    <img src={uploadedImageBase64} alt="Upload thumb" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="text-xs font-black text-slate-200 truncate">{uploadedImageName || "Attached Image"}</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ready to analyze with AI Coach</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadedImageBase64(null);
+                    setUploadedImageName("");
+                  }}
+                  className="p-1 px-2.5 bg-white/5 hover:bg-rose-500/20 border border-white/5 hover:border-rose-500/25 rounded-xl text-[10px] uppercase font-black tracking-widest text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                >
+                  Discard
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Dynamic Vision Actions Row (Only visible when image is uploaded) */}
+          <AnimatePresence>
+            {uploadedImageBase64 && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none select-none">
+                  {[
+                    { label: "Explain Image", icon: "💡", prompt: "Please analyze the visual content of this uploaded material and explain its main core concepts with logical clarity." },
+                    { label: "Summarize Notes", icon: "📑", prompt: "Extract and summarize these textbook pages or notes in a clean, comprehensive study guide with bullet points." },
+                    { label: "Solve Problem", icon: "📐", prompt: "Perform deep step-by-step problem solving for this visual math/science problem. Lay down the precise calculations." },
+                    { label: "Generate Quiz", icon: "📝", prompt: "Based on this uploaded question paper, diagram, or textbook content, create a short active recall quiz." },
+                    { label: "OCR Extract Text", icon: "🔍", prompt: "Perform clean, high-fidelity OCR text extraction of all visible words in this image, grouped by visual headers." },
+                    { label: "Create Flashcards", icon: "🧠", prompt: "Generate 3 high-yield active recall flashcard pairs (Question-Answer style) based on this educational content." },
+                    { label: "Identify Topics", icon: "🎯", prompt: "Identify the top curriculum headings and important academic topics highlighted in this material." },
+                    { label: "Find Mistakes", icon: "❌", prompt: "Review any visible answers or worked-out problems here, point out any procedural/logical mistakes, and explain correcting details." },
+                    { label: "Suggest Improvements", icon: "📈", prompt: "Analyze this homework or notes page and recommend 3 actionable improvements to score a top-tier academic mark." }
+                  ].map((act, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      disabled={isChatLoading}
+                      onClick={() => {
+                        handleSendCoachMessage(undefined, act.prompt);
+                      }}
+                      className="px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-md shadow-indigo-505/5"
+                    >
+                      <span>{act.icon}</span>
+                      <span>{act.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Quick tutor small helpers row (scrollbar inline horizontal slider) */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+            {[
+              { label: "Explain Chapter", icon: "📚", text: "Walk me through the active parameters to explain this chapter with pristine logical clarity." },
+              { label: "Quiz Recalls", icon: "📝", text: "Provide a quick diagnostic recall quiz based on this subject's core concepts." },
+              { label: "Derive Formula", icon: "📐", text: "Let's perform a math/science trace derivation of the central formula step-by-step." },
+              { label: "Check Weaknesses", icon: "📊", text: "Identify potential exam pitfalls, and give tailored confidence level boosters." },
+              { label: "Time management", icon: "📅", text: "Explain how to pair my study time with Fajr early hours wakeup or other prayer intervals." },
+              { label: "Study Hacks", icon: "💡", text: "What is a useful scientific active-recall exam shortcut for this exact registry?" }
+            ].map((btn, idx) => (
+              <button
+                key={idx}
+                type="button"
+                disabled={isChatLoading}
+                onClick={() => {
+                  const subLabel = activeSession.subject === "General Study" ? "general studies" : activeSession.subject;
+                  const formatted = `[${btn.label} helper for ${subLabel}] - ${btn.text}`;
+                  handleSendCoachMessage(undefined, formatted);
+                }}
+                className="px-3.5 py-2 bg-white/[0.01] hover:bg-white/5 border border-white/5 hover:border-indigo-500/20 hover:text-white rounded-xl text-[11px] text-slate-300 font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-md"
+              >
+                <span>{btn.icon}</span>
+                <span>{btn.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Form Input panel with Enter dispatch listener */}
+          <div className="flex gap-3">
+            <form
+              onSubmit={(e) => handleSendCoachMessage(e)}
+              className="flex-1 flex gap-2"
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/png, image/jpeg, image/jpg, image/webp"
+                className="hidden"
+              />
+              
+              <button
+                type="button"
+                disabled={isChatLoading}
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload screenshot or document (JPG, PNG, WEBP)"
+                className="px-4 bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-500/30 text-indigo-400 hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50"
+              >
+                <Image className="w-4 h-4" />
+              </button>
+
+              <input
+                type="text"
+                value={coachInput}
+                onChange={(e) => setCoachInput(e.target.value)}
+                placeholder={
+                  activeSession.subject === "General Study"
+                    ? "Ask anything about active recall, Pomodoro limits, or general study loads..."
+                    : activeSession.subject === "Custom Focus"
+                    ? `Ask about ${activeSession.customSubjectText || customSubjectText || "your custom topic"}...`
+                    : `Ask AI Coach about ${activeSession.subject}...`
+                }
+                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 transition-all font-medium"
+              />
+              <button
+                type="submit"
+                disabled={(!coachInput.trim() && !uploadedImageBase64) || isChatLoading}
+                className="px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-505 hover:to-purple-505 disabled:bg-slate-800 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 rounded-2xl text-white transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-lg"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+
+            {/* Clear button to reset discussion log */}
+            <button
+              onClick={() => {
+                if (window.confirm("Are you sure you want to clear conversation history?")) {
+                  handleClearConversation(activeSession.id);
+                }
+              }}
+              title="Clear conversation"
+              className="px-4 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-slate-400 hover:text-red-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </div>
+
+        </footer>
+
+      </section>
+
+    </div>
+  );
+}
