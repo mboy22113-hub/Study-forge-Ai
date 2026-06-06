@@ -1,0 +1,8 @@
+{
+  "name": "StudyForge AI",
+  "description": "An immersive, Google AI Studio-inspired SaaS-style website containing personalized AI study plan generators, flashcards, a Pomodoro and deep work focus timer, interactive mock quizzes, analytics graphs, and an AI study coach powered directly by Gemini.",
+  "requestFramePermissions": [
+    "notifications"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
