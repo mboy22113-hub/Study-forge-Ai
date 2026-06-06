@@ -28,6 +28,7 @@ import SmartPriority from "./components/SmartPriority";
 import DopamineCentrals from "./components/DopamineCentrals";
 import AnalyticsPanel from "./components/AnalyticsPanel";
 import SplashAndLoading from "./components/SplashAndLoading";
+import SmartPlanner from "./components/SmartPlanner";
 import { motion, AnimatePresence } from "motion/react";
 
 // Web Audio synthesizer for ambient neuro-focus beats
@@ -419,6 +420,7 @@ export default function App() {
 
   // AI Chat parameters
   const [currentChatSubject, setCurrentChatSubject] = useState("General Study");
+  const [customSubjectText, setCustomSubjectText] = useState("");
   const [chatMode, setChatMode] = useState<"quick" | "detailed" | "teacher" | "quiz" | "flashcard" | "exam" | "motivation">("detailed");
   const [chatError, setChatError] = useState<string | null>(null);
   const [coachInputs, setCoachInputs] = useState("");
@@ -587,20 +589,32 @@ export default function App() {
 
   const [routineData, setRoutineData] = useState(() => {
     const saved = localStorage.getItem("sf_planner_routine");
-    return saved ? JSON.parse(saved) : {
-      wakeUpTime: "05:00",
-      sleepTime: "22:00",
-      breakfastStart: "08:00",
-      breakfastEnd: "08:30",
-      lunchStart: "13:00",
-      lunchEnd: "14:00",
-      dinnerStart: "20:00",
-      dinnerEnd: "21:00",
-      fajrTime: "04:30",
-      dhuhrTime: "12:30",
-      asrTime: "16:00",
-      maghribTime: "19:00",
-      ishaTime: "20:30"
+    const raw = saved ? JSON.parse(saved) : {};
+    return {
+      wakeUpTime: raw.wakeUpTime || "05:00",
+      sleepTime: raw.sleepTime || "22:00",
+      breakfastStart: raw.breakfastStart || "08:00",
+      breakfastEnd: raw.breakfastEnd || "08:30",
+      lunchStart: raw.lunchStart || "13:00",
+      lunchEnd: raw.lunchEnd || "14:00",
+      dinnerStart: raw.dinnerStart || "20:00",
+      dinnerEnd: raw.dinnerEnd || "21:00",
+      fajrTime: raw.fajrTime || "04:30",
+      dhuhrTime: raw.dhuhrTime || "12:30",
+      asrTime: raw.asrTime || "16:00",
+      maghribTime: raw.maghribTime || "19:00",
+      ishaTime: raw.ishaTime || "20:30",
+      // Detailed prayer ranges
+      fajrStart: raw.fajrStart || raw.fajrTime || "04:30",
+      fajrEnd: raw.fajrEnd || "05:00",
+      dhuhrStart: raw.dhuhrStart || raw.dhuhrTime || "12:30",
+      dhuhrEnd: raw.dhuhrEnd || "13:00",
+      asrStart: raw.asrStart || raw.asrTime || "16:00",
+      asrEnd: raw.asrEnd || "16:30",
+      maghribStart: raw.maghribStart || raw.maghribTime || "19:00",
+      maghribEnd: raw.maghribEnd || "19:30",
+      ishaStart: raw.ishaStart || raw.ishaTime || "20:30",
+      ishaEnd: raw.ishaEnd || "21:00"
     };
   });
 
@@ -1009,27 +1023,35 @@ ${computedRankings.map((rk, idx) => `
           type: "chat",
           payload: {
             messages: updatedMessages.map(m => ({ role: m.role, content: m.content })),
-            currentSubject: currentChatSubject,
+            currentSubject: currentChatSubject === "Custom Focus" ? customSubjectText : currentChatSubject,
             chatMode: activeMode,
             profileContext: {
               username: userName,
               streak: streak,
               xp: xp,
               subjectsList: subjects,
-              goalsList: goals
+              goalsList: goals,
+              studyPlansList: studyPlans,
+              routine: routineData,
+              pdfsCount: pdfs.length
             }
           }
         }),
       });
 
-      if (!response.ok) throw new Error("Could not reach study tutor networks.");
+      if (!response.ok) {
+        throw new Error("Unable to generate a response right now.");
+      }
 
       const raw = await response.json();
+      if (!raw || !raw.text) {
+        throw new Error("Unable to generate a response right now.");
+      }
       setChatMessages((prev) => [...prev, { role: "model", content: raw.text }]);
       awardXp(30);
     } catch (err: any) {
-      console.error(err);
-      setChatError("Unable to connect to your AI Study Coach right now. Please check your credentials and retry.");
+      console.error("[CHAT API ERROR]:", err);
+      setChatError("Unable to generate a response right now.");
     } finally {
       setIsChatLoading(false);
     }
@@ -1050,27 +1072,35 @@ ${computedRankings.map((rk, idx) => `
           type: "chat",
           payload: {
             messages: chatMessages.map(m => ({ role: m.role, content: m.content })),
-            currentSubject: currentChatSubject,
+            currentSubject: currentChatSubject === "Custom Focus" ? customSubjectText : currentChatSubject,
             chatMode: chatMode,
             profileContext: {
               username: userName,
               streak: streak,
               xp: xp,
               subjectsList: subjects,
-              goalsList: goals
+              goalsList: goals,
+              studyPlansList: studyPlans,
+              routine: routineData,
+              pdfsCount: pdfs.length
             }
           }
         }),
       });
 
-      if (!response.ok) throw new Error("Could not reach study tutor networks.");
+      if (!response.ok) {
+        throw new Error("Unable to generate a response right now.");
+      }
 
       const raw = await response.json();
+      if (!raw || !raw.text) {
+        throw new Error("Unable to generate a response right now.");
+      }
       setChatMessages((prev) => [...prev, { role: "model", content: raw.text }]);
       awardXp(30);
     } catch (err: any) {
-      console.error(err);
-      setChatError("Unable to connect to your AI Study Coach right now. Please check your credentials and retry.");
+      console.error("[RETRY CHAT API ERROR]:", err);
+      setChatError("Unable to generate a response right now.");
     } finally {
       setIsChatLoading(false);
     }
@@ -1710,53 +1740,98 @@ ${computedRankings.map((rk, idx) => `
                         {/* Prayer Times checklist bounds */}
                         <div className="space-y-3 font-sans">
                           <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider border-b border-white/5 pb-1 flex items-center gap-1.5 text-purple-300">
-                            📿 Spiritual Prayer Timestamps (No Study During These Blocks)
+                            📿 Spiritual Prayer Start & End Timestamps (No Study During These Blocks)
                           </h4>
-                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                             <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
-                              <label className="text-[9px] font-black text-purple-300 uppercase block">Fajr</label>
-                              <input
-                                type="time"
-                                value={routineData.fajrTime}
-                                onChange={(e) => setRoutineData({ ...routineData, fajrTime: e.target.value })}
-                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
-                              />
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Fajr Range</label>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <input
+                                  type="time"
+                                  value={routineData.fajrStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, fajrStart: e.target.value, fajrTime: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                                <span className="text-[8px] text-slate-500">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.fajrEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, fajrEnd: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                              </div>
                             </div>
                             <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
-                              <label className="text-[9px] font-black text-purple-300 uppercase block">Dhuhr</label>
-                              <input
-                                type="time"
-                                value={routineData.dhuhrTime}
-                                onChange={(e) => setRoutineData({ ...routineData, dhuhrTime: e.target.value })}
-                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
-                              />
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Dhuhr Range</label>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <input
+                                  type="time"
+                                  value={routineData.dhuhrStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, dhuhrStart: e.target.value, dhuhrTime: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                                <span className="text-[8px] text-slate-500">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.dhuhrEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, dhuhrEnd: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                              </div>
                             </div>
                             <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
-                              <label className="text-[9px] font-black text-purple-300 uppercase block">Asr</label>
-                              <input
-                                type="time"
-                                value={routineData.asrTime}
-                                onChange={(e) => setRoutineData({ ...routineData, asrTime: e.target.value })}
-                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
-                              />
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Asr Range</label>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <input
+                                  type="time"
+                                  value={routineData.asrStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, asrStart: e.target.value, asrTime: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                                <span className="text-[8px] text-slate-500">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.asrEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, asrEnd: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                              </div>
                             </div>
                             <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
-                              <label className="text-[9px] font-black text-purple-300 uppercase block">Maghrib</label>
-                              <input
-                                type="time"
-                                value={routineData.maghribTime}
-                                onChange={(e) => setRoutineData({ ...routineData, maghribTime: e.target.value })}
-                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
-                              />
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Maghrib Range</label>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <input
+                                  type="time"
+                                  value={routineData.maghribStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, maghribStart: e.target.value, maghribTime: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                                <span className="text-[8px] text-slate-500">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.maghribEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, maghribEnd: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                              </div>
                             </div>
-                            <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center col-span-2 sm:col-span-1">
-                              <label className="text-[9px] font-black text-purple-300 uppercase block">Isha</label>
-                              <input
-                                type="time"
-                                value={routineData.ishaTime}
-                                onChange={(e) => setRoutineData({ ...routineData, ishaTime: e.target.value })}
-                                className="w-full bg-black/40 text-center border border-white/5 rounded py-1 text-xs text-white mt-1 color-scheme-dark"
-                              />
+                            <div className="space-y-1 p-2 bg-purple-950/5 border border-purple-500/10 rounded-xl text-center">
+                              <label className="text-[9px] font-black text-purple-300 uppercase block">Isha Range</label>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <input
+                                  type="time"
+                                  value={routineData.ishaStart}
+                                  onChange={(e) => setRoutineData({ ...routineData, ishaStart: e.target.value, ishaTime: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                                <span className="text-[8px] text-slate-500">to</span>
+                                <input
+                                  type="time"
+                                  value={routineData.ishaEnd}
+                                  onChange={(e) => setRoutineData({ ...routineData, ishaEnd: e.target.value })}
+                                  className="w-full bg-black/40 text-center border border-white/5 rounded py-0.5 text-[10px] text-white color-scheme-dark"
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -2306,9 +2381,10 @@ ${computedRankings.map((rk, idx) => `
                     {currentChatSubject === "CustomFocus" || currentChatSubject === "Custom Focus" ? (
                       <input
                         type="text"
+                        value={customSubjectText}
                         placeholder="Type topic..."
                         className="w-40 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500/50 animate-fadeIn"
-                        onChange={(e) => setCurrentChatSubject(e.target.value)}
+                        onChange={(e) => setCustomSubjectText(e.target.value)}
                       />
                     ) : null}
                   </div>
@@ -2488,6 +2564,8 @@ ${computedRankings.map((rk, idx) => `
                     placeholder={
                       currentChatSubject === "General Study"
                         ? "Ask about learning strategies, active recall, or ask academic questions..."
+                        : currentChatSubject === "Custom Focus"
+                        ? `Ask a question about ${customSubjectText || 'your custom topic'}...`
                         : `Ask a question about ${currentChatSubject}...`
                     }
                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-blue-500/50"

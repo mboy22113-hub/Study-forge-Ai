@@ -6,9 +6,9 @@ let genAIInstance: any = null;
 export function getGenAI() {
   if (!genAIInstance) {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn("WARNING: GEMINI_API_KEY is not defined. Falling back to mock AI server mode.");
-      return null;
+    if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey.trim() === "") {
+      console.error("[GEMINI CONFIG ERROR] GEMINI_API_KEY is not defined or is a placeholder.");
+      throw new Error("Unable to generate a response right now. (Invalid or missing GEMINI_API_KEY)");
     }
     genAIInstance = new GoogleGenAI({
       apiKey,
@@ -26,8 +26,13 @@ export async function handleGeminiGeneration(type: string, payload: any) {
   const ai = getGenAI();
   
   if (!ai) {
-    return getFallbackResponse(type, payload);
+    throw new Error("Unable to generate a response right now.");
   }
+
+  console.log(`\n================== [GEMINI INCOMING REQUEST] ==================`);
+  console.log(`Type: ${type}`);
+  console.log(`Date: ${new Date().toISOString()}`);
+  console.log(`Request Payload:`, JSON.stringify(payload, null, 2));
 
   try {
     switch (type) {
@@ -54,6 +59,8 @@ You MUST respond with a JSON object fitting exactly this structure:
 
 Provide exactly 3 to 4 logical milestone divisions spanning the specified duration. Do not output anything other than raw, valid JSON.`;
 
+        console.log(`[GEMINI CORE PROMPT]:`, prompt);
+
         const response = await ai.models.generateContent({
           model: 'gemini-3.5-flash',
           contents: prompt,
@@ -62,7 +69,13 @@ Provide exactly 3 to 4 logical milestone divisions spanning the specified durati
             temperature: 0.3,
           }
         });
-        return JSON.parse((response.text || '').trim());
+
+        const textResponse = (response.text || '').trim();
+        console.log(`[GEMINI API STATUS]: 200 OK`);
+        console.log(`[GEMINI RESPONSE PAYLOAD]:`, textResponse);
+        console.log(`===============================================================\n`);
+
+        return JSON.parse(textResponse);
       }
 
       case 'flashcards': {
@@ -80,6 +93,8 @@ You MUST respond with a JSON array fitting exactly this structure:
 
 Do not output anything other than raw, valid JSON.`;
 
+        console.log(`[GEMINI CORE PROMPT]:`, prompt);
+
         const response = await ai.models.generateContent({
           model: 'gemini-3.5-flash',
           contents: prompt,
@@ -88,7 +103,13 @@ Do not output anything other than raw, valid JSON.`;
             temperature: 0.4,
           }
         });
-        return JSON.parse((response.text || '').trim());
+
+        const textResponse = (response.text || '').trim();
+        console.log(`[GEMINI API STATUS]: 200 OK`);
+        console.log(`[GEMINI RESPONSE PAYLOAD]:`, textResponse);
+        console.log(`===============================================================\n`);
+
+        return JSON.parse(textResponse);
       }
 
       case 'quiz': {
@@ -110,6 +131,8 @@ You MUST respond with a JSON array fitting exactly this structure:
 
 Each question must have exactly 4 choices and a valid correctAnswerIndex (integer index 0-3 of the correct option). Do not output anything other than raw, valid JSON.`;
 
+        console.log(`[GEMINI CORE PROMPT]:`, prompt);
+
         const response = await ai.models.generateContent({
           model: 'gemini-3.5-flash',
           contents: prompt,
@@ -118,7 +141,13 @@ Each question must have exactly 4 choices and a valid correctAnswerIndex (intege
             temperature: 0.3,
           }
         });
-        return JSON.parse((response.text || '').trim());
+
+        const textResponse = (response.text || '').trim();
+        console.log(`[GEMINI API STATUS]: 200 OK`);
+        console.log(`[GEMINI RESPONSE PAYLOAD]:`, textResponse);
+        console.log(`===============================================================\n`);
+
+        return JSON.parse(textResponse);
       }
 
       case 'chat': {
@@ -151,30 +180,46 @@ Each question must have exactly 4 choices and a valid correctAnswerIndex (intege
             modeGuideline = "MODE: General Study Assistant. Provide encouraging, professional, and clear advice.";
         }
 
-        // Incorporate profile details if available
+        // Incorporate profile and progress details dynamically
         let profileInfo = "";
         if (profileContext) {
-          const { username, streak, xp, subjectsList, goalsList } = profileContext;
-          profileInfo = `STUDENT PROFILE CONTEXT:
+          const { username, streak, xp, subjectsList, goalsList, studyPlansList, routine, pdfsCount } = profileContext;
+          profileInfo = `STUDENT PROFILE AND PROGRESS CONTEXT:
 - Student Name: ${username || 'Scholar'}
 - Consistent Study Streak: ${streak || 0} days
 - Accumulated XP: ${xp || 0} XP
+- Vault PDF documents uploaded: ${pdfsCount || 0} files
 `;
+
           if (subjectsList && subjectsList.length > 0) {
-            profileInfo += `- Registered subjects in profile:\n${subjectsList.map((s: any) => `  * ${s.title} (${s.level || 'General'}) - Difficulty: ${s.difficulty || 'Medium'}, Confidence: ${s.confidenceLevel || 50}/100, Exam Date: ${s.examDate || 'None'}`).join("\n")}\n`;
+            profileInfo += `- Active Registered Subjects:\n${subjectsList.map((s: any) => `  * ${s.name || s.title || 'General'} (total chapters: ${s.totalChapters || 1}, completed: ${s.completedChapters || 0} chapters, confidence: ${s.confidenceLevel || 5}/10, average marks: ${s.previousMarks || 75}%, difficulty: ${s.difficultyLevel || s.difficulty || 'Medium'})`).join("\n")}\n`;
             
-            // Highlight weak/strong subjects based on confidence and difficulty
-            const weak = subjectsList.filter((s: any) => s.difficulty === 'Hard' || (s.confidenceLevel && s.confidenceLevel < 50));
-            const strong = subjectsList.filter((s: any) => s.difficulty === 'Easy' || (s.confidenceLevel && s.confidenceLevel >= 75));
+            const weak = subjectsList.filter((s: any) => (s.difficultyLevel === 'Hard' || s.difficulty === 'Hard') || (s.confidenceLevel && s.confidenceLevel < 5));
+            const strong = subjectsList.filter((s: any) => (s.difficultyLevel === 'Easy' || s.difficulty === 'Easy') || (s.confidenceLevel && s.confidenceLevel >= 8));
             if (weak.length > 0) {
-              profileInfo += `- Weak subjects: ${weak.map((s: any) => s.title).join(", ")}\n`;
+              profileInfo += `- Weak Subjects needing focus support: ${weak.map((s: any) => s.name || s.title).join(", ")}\n`;
             }
             if (strong.length > 0) {
-              profileInfo += `- Strong subjects: ${strong.map((s: any) => s.title).join(", ")}\n`;
+              profileInfo += `- Strong Subjects: ${strong.map((s: any) => s.name || s.title).join(", ")}\n`;
             }
           }
+
           if (goalsList && goalsList.length > 0) {
-            profileInfo += `- Active Study Goals: ${goalsList.map((g: any) => g.title).join(", ")}\n`;
+            profileInfo += `- Student Active Study Goals: ${goalsList.map((g: any) => g.title || g.text || g).join(", ")}\n`;
+          }
+
+          if (studyPlansList && studyPlansList.length > 0) {
+            const activePlan = studyPlansList[0];
+            profileInfo += `- Current Master Strategy Plan: ${activePlan.subject || ''} (Progress: ${activePlan.progress || 0}%, Semester/Level: ${activePlan.level || ''})\n`;
+          }
+
+          if (routine) {
+            profileInfo += `- Wake-up Bed Boundaries: wakeUpTime is ${routine.wakeUpTime || '05:00'}, sleepTime is ${routine.sleepTime || '22:00'}\n`;
+            profileInfo += `- Guaranteed Overlap Guard Intervals:\n`;
+            profileInfo += `  * Breakfast Time: ${routine.breakfastStart || '08:00'} to ${routine.breakfastEnd || '08:30'}\n`;
+            profileInfo += `  * Lunch Time: ${routine.lunchStart || '13:00'} to ${routine.lunchEnd || '14:00'}\n`;
+            profileInfo += `  * Dinner Time: ${routine.dinnerStart || '20:00'} to ${routine.dinnerEnd || '21:00'}\n`;
+            profileInfo += `  * Spiritual Prayers: Fajr ${routine.fajrTime || '05:00'}, Dhuhr ${routine.dhuhrTime || '12:30'}, Asr ${routine.asrTime || '15:30'}, Maghrib ${routine.maghribTime || '19:00'}, Isha ${routine.ishaTime || '20:30'}\n`;
           }
         }
 
@@ -203,13 +248,52 @@ FORMATING RULES:
 - Use clear markdown structure. Use bolding (**), bullet lists, and standard short headings.
 - Maintain a friendly, supportive, yet highly professional tone.
 - NEVER assume the student studies Physics or default to Quantum Physics unless they specifically select or prompt about it. Adapt dynamically to whatever subject is active: Mathematics, Chemistry, Computer Science, Biology, Literature, or General study tips.
-- Keep answers scannable and relatively concise (usually under 250 words, depending on selected Mode).`;
+- Keep answers scannable and relatively concise. Provide authentic, custom dynamic responses based strictly on the user's focus topic and questions. Do not return repeating, pre-baked phrases. Ensure you answer explain logic gates, create quizzes on motors, or propose customized plans when prompted.`;
 
-        // Map client messages history to Gemini parts
-        const contents = (messages || []).map((m: any) => ({
+        // Log incoming user prompt
+        const latestUserMessageObj = [...(messages || [])].reverse().find((m: any) => m.role === 'user');
+        const latestUserMessageText = latestUserMessageObj ? latestUserMessageObj.content : 'N/A';
+        console.log(`[GEMINI CHAT USER PROMPT]: "${latestUserMessageText}"`);
+
+        // Filter out any leading model messages, and ensure alternating turns start with 'user'
+        let chatHistory = (messages || []).map((m: any) => ({
           role: m.role === 'user' ? 'user' : 'model',
+          content: m.content || m.text || ''
+        }));
+
+        // Find the first user message index to ensure history starts with 'user'
+        const firstUserIndex = chatHistory.findIndex(m => m.role === 'user');
+        if (firstUserIndex !== -1) {
+          chatHistory = chatHistory.slice(firstUserIndex);
+        } else {
+          chatHistory = [];
+        }
+
+        // Map to Gemini parts and filter adjacent messages of the same role
+        const intermediateContents = chatHistory.map((m: any) => ({
+          role: m.role as 'user' | 'model',
           parts: [{ text: m.content }]
         }));
+
+        const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+        for (const item of intermediateContents) {
+          if (contents.length === 0) {
+            if (item.role === 'user') {
+              contents.push(item);
+            }
+          } else {
+            const lastItem = contents[contents.length - 1];
+            if (lastItem.role === item.role) {
+              // Same role consecutive turn: concatenate content
+              lastItem.parts[0].text += "\n" + item.parts[0].text;
+            } else {
+              contents.push(item);
+            }
+          }
+        }
+
+        console.log(`[GEMINI CONVERSATION HISTORIES]:`, JSON.stringify(contents, null, 2));
+        console.log(`[GEMINI SYSTEM INSTRUCTIONS]:`, systemInstruction);
 
         const response = await ai.models.generateContent({
           model: 'gemini-3.5-flash',
@@ -220,16 +304,17 @@ FORMATING RULES:
           }
         });
 
-        return { text: response.text || "Let's keep focusing on mastering this topic!" };
+        const textResponse = response.text || "Unable to generate a response right now.";
+        console.log(`[GEMINI API STATUS]: 200 OK`);
+        console.log(`[GEMINI RESPONSE PAYLOAD - CHAT RESPONSE]:`, textResponse);
+        console.log(`===============================================================\n`);
+
+        return { text: textResponse };
       }
 
       case 'assessment_study_plan': {
-        const {
-          subjectsList,
-          routine
-        } = payload;
+        const { subjectsList, routine } = payload;
 
-        // Construct detailed descriptions
         const subjectsDescription = (subjectsList || []).map((sub: any, idx: number) => `
 Subject #${idx + 1}:
 - Name: ${sub.name}
@@ -359,6 +444,8 @@ You MUST analyze this data thoroughly and respond with a JSON object fitting exa
 
 Ensure all generated schedules, count downs, revision sessions, and overlap guards use the student's actual uploaded dataset. Strictly return valid JSON. Do not return any wrap text outside the JSON block. Let markdown lists inside the text values look extremely beautiful.`;
 
+        console.log(`[GEMINI CORE PROMPT]:`, prompt);
+
         const response = await ai.models.generateContent({
           model: 'gemini-3.5-flash',
           contents: prompt,
@@ -368,100 +455,23 @@ Ensure all generated schedules, count downs, revision sessions, and overlap guar
           }
         });
 
-        return JSON.parse((response.text || '').trim());
+        const textResponse = (response.text || '').trim();
+        console.log(`[GEMINI API STATUS]: 200 OK`);
+        console.log(`[GEMINI RESPONSE PAYLOAD]:`, textResponse);
+        console.log(`===============================================================\n`);
+
+        return JSON.parse(textResponse);
       }
 
       default:
         throw new Error(`Invalid generation type: ${type}`);
     }
-  } catch (error) {
-    console.error(`Gemini GenAI Error for ${type}:`, error);
-    return getFallbackResponse(type, payload);
-  }
-}
-
-function getFallbackResponse(type: string, payload: any) {
-  switch (type) {
-    case 'study_plan':
-      return {
-        overview: `A progressive study roadmap in ${payload.subject} customized to target baseline parameters.`,
-        proTip: "Combine work blocks with focused recall test quizzes to boost long-term retention.",
-        milestones: [
-          {
-            week: "Week 1-2",
-            title: "Foundations of " + payload.subject,
-            topics: ["Introduction and underlying axioms", "Core vocabulary and definitions", "Active mental map modeling"],
-            estimatedHours: 6
-          },
-          {
-            week: "Week 3-4",
-            title: "Practical Exercises & Solutions",
-            topics: ["Formulas derivation calculations", "Sample queries and quizzes training", "Review of common student error logs"],
-            estimatedHours: 8
-          }
-        ]
-      };
-
-    case 'flashcards':
-      return [
-        { front: `What is the core baseline theorem in ${payload.subject}?`, back: "The fundamental model describing how parameters interact to determine standard outcomes." },
-        { front: "Explain how Active Recall benefits retention.", back: "Forcing cognitive retrieval triggers synaptic development and reinforces long-term pathways." },
-        { front: "State the main benefit of Spaced Repetition.", back: "Reviews are strategically scheduled just as recall begins to fade, maximizing timing efficiency." }
-      ];
-
-    case 'quiz':
-      return [
-        {
-          id: 1,
-          question: `Which study habit is scientifically validated to yield the highest retention for ${payload.topic}?`,
-          options: ["Highlighting definitions repeatedly", "Active self-testing and spaced intervals", "Cramming continuously with study guides", "Prerecorded audio lecture playback"],
-          correctAnswerIndex: 1,
-          explanation: "Active self-testing forces retrieval, strengthening brain pathways much faster than passive reading."
-        },
-        {
-          id: 2,
-          question: "How should we normalize a quantum mechanical wavefunction?",
-          options: ["Set its absolute square integral over space equal to 1", "Verify that its maximum limit is infinity", "Omit imaginary phase components", "Divide it by Planck's constant"],
-          correctAnswerIndex: 0,
-          explanation: "Normalizing the wave function guarantees a 100% total probability of finding the particle somewhere in physical space."
-        }
-      ];
-
-    case 'chat':
-      return {
-        text: "I am analyzing your progress. Let's execute some Pomodoro sessions and test our recollection using study flashcards! What specific subject topics should we focus on next?"
-      };
-
-    case 'assessment_study_plan':
-      return {
-        calculatedMetrics: {
-          daysRemaining: 15,
-          syllabusCompletionPercent: Math.round(((payload?.syllabusDetails?.chaptersCompleted || 0) / (payload?.syllabusDetails?.chaptersTotal || 10)) * 100),
-          subjectDifficultyScore: payload?.performanceAnalysis?.confidenceLevel ? Math.max(1, 10 - payload.performanceAnalysis.confidenceLevel) : 5,
-          weaknessScore: 6,
-          confidenceScore: payload?.performanceAnalysis?.confidenceLevel || 5,
-          revisionRequirement: "Fallback design: Revise hardest chapters first every 3 days.",
-          examReadinessScore: 65,
-          riskLevel: "moderate"
-        },
-        dailyStudyPlan: "**Fallback Baseline Daily Schedule**:\n\n* **06:00 AM - 07:30 AM**: Heavy conceptual revision.\n* **01:30 PM - 03:00 PM**: Working out exercises and math equations.\n* **08:00 PM - 09:30 PM**: Fast active recall testing and review of flashcards.",
-        weeklyStudyPlan: "**Fallback Week-by-Week Breakdown**:\n\n* **Week 1**: Focus purely on fundamentals.\n* **Week 2**: Tackle past papers and mock multiple choice questions.\n* **Week 3**: Final mock tests and targeted spaced repetition intervals.",
-        monthlyStudyPlan: "**Fallback Monthly Milestones**:\n\n* **Month 1**: Cover 75 percent of remaining syllabus lessons.\n* **Month 2**: Active recall sprints, focus drills, and complete revision checklist.",
-        revisionSchedule: "**Fallback Spaced Recall Spacing**:\n\n* Review struggle topics after 1 day, 3 days, and 7 days. Use Flashcard matrices.",
-        examCrisisPlan: "**Crisis Compression Plan**:\n\n* Highlight and prioritize high-marks topics immediately.\n* Compress minor chapters and delegate last 3 days before exams entirely to quick review loops.",
-        priorityTopics: [
-          "Priority 1: Key milestones and important topics in " + (payload?.academicDetails?.hardestSubject || 'hardest subject'),
-          "Priority 2: Practical formulas derivation challenges",
-          "Priority 3: Fast concept review logs"
-        ],
-        aiRecommendations: [
-          "Establish focus triggers corresponding to your preferred " + (payload?.timeManagement?.preferredTime || "selected") + " study session block.",
-          "Dedicate at least 30 minutes to review PDF resources uploaded in PDF Vault.",
-          "Maintain absolute sleep consistency between Sleep Time and Wake up times."
-        ]
-      };
-
-    default:
-      return { text: "No content generated." };
+  } catch (error: any) {
+    console.error(`\n================== [GEMINI RUNTIME ERROR] ==================`);
+    console.error(`Type: ${type}`);
+    console.error(`Date: ${new Date().toISOString()}`);
+    console.error(`Error details:`, error);
+    console.error(`====================================================================\n`);
+    throw new Error("Unable to generate a response right now.");
   }
 }
