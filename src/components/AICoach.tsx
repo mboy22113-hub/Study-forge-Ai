@@ -491,6 +491,10 @@ export default function AICoach({
   const [attachedPdfId, setAttachedPdfId] = useState<string | null>(null);
   const [showPdfPicker, setShowPdfPicker] = useState(false);
 
+  // Mobile navigation show/hide scroll state
+  const [showHeader, setShowHeader] = useState(true);
+  const lastScrollY = useRef(0);
+
   // Computed attached PDF object
   const attachedPdf = useMemo(() => {
     return pdfs.find((p) => p.id === attachedPdfId) || null;
@@ -1234,7 +1238,7 @@ export default function AICoach({
     const blocks = text.split(/(\`\`\`[a-zA-Z0-9-]*\n[\s\S]*?\n\`\`\`)/);
 
     return (
-      <div className="space-y-4 text-slate-200 text-sm sm:text-base leading-[1.7] select-text font-normal">
+      <div className="space-y-4 text-[#111827] text-sm sm:text-base leading-[1.7] select-text font-normal">
         {blocks.map((block, bIdx) => {
           if (block.startsWith("```")) {
             const match = block.match(/^\`\`\`([a-zA-Z0-9-]*)\n([\s\S]*?)\n\`\`\`$/);
@@ -1333,17 +1337,17 @@ export default function AICoach({
             }
 
             return (
-              <div key={bIdx} className="rounded-xl overflow-hidden border border-white/10 bg-slate-950/90 my-4 font-mono shadow-lg">
-                <div className="flex bg-white/[0.04] px-4 py-2 text-xs text-slate-400 items-center justify-between border-b border-white/5 uppercase tracking-wider font-extrabold text-[10px]">
+              <div key={bIdx} className="rounded-xl overflow-hidden border border-slate-200 bg-slate-950 my-4 font-mono shadow-md">
+                <div className="flex bg-slate-900 px-4 py-2 text-xs text-slate-450 items-center justify-between border-b border-slate-800 uppercase tracking-wider font-extrabold text-[10px]">
                   <span>💻 {language}</span>
                   <button
                     onClick={() => navigator.clipboard.writeText(codeContent)}
-                    className="flex gap-1.5 hover:text-white transition-all text-slate-500 font-bold cursor-pointer"
+                    className="flex gap-1.5 hover:text-white transition-all text-slate-400 font-bold cursor-pointer"
                   >
                     <Clipboard className="w-3.5 h-3.5" /> Copy
                   </button>
                 </div>
-                <pre className="p-4 overflow-x-auto text-[13px] text-indigo-300 select-text leading-relaxed whitespace-pre font-mono scrollbar-thin">{codeContent}</pre>
+                <pre className="p-4 overflow-x-auto text-[13px] text-indigo-200 select-text leading-relaxed whitespace-pre font-mono scrollbar-thin">{codeContent}</pre>
               </div>
             );
           }
@@ -1358,7 +1362,7 @@ export default function AICoach({
             return partsForCode.map((part, pI) => {
               if (part.startsWith("`") && part.endsWith("`")) {
                 return (
-                  <code key={pI} className="bg-white/10 border border-white/5 px-1.5 py-0.5 rounded text-indigo-300 font-mono text-xs font-semibold">
+                  <code key={pI} className="bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-indigo-600 font-mono text-xs font-semibold">
                     {part.slice(1, -1)}
                   </code>
                 );
@@ -1366,7 +1370,7 @@ export default function AICoach({
               const partsForBold = part.split("**");
               return partsForBold.map((sub, i) =>
                 i % 2 !== 0 ? (
-                  <strong key={i} className="text-white font-extrabold text-[#f1f5f9]">
+                  <strong key={i} className="text-[#111827] font-extrabold">
                     {sub}
                   </strong>
                 ) : (
@@ -1416,8 +1420,8 @@ export default function AICoach({
               const cleanText = trimmed.replace(/^(\*\s*|-\s*|•\s*)/, "");
               elements.push(
                 <div key={idx} className="flex items-start gap-2.5 pl-4 sm:pl-6 my-2">
-                  <span className="text-purple-400 mt-2 shrink-0 block w-1.5 h-1.5 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50"></span>
-                  <p className="flex-1 text-slate-300 leading-[1.7]">{parseInlineFormatting(cleanText)}</p>
+                  <span className="text-purple-600 mt-2 shrink-0 block w-1.5 h-1.5 rounded-full bg-purple-600 shadow-sm shadow-purple-500/50"></span>
+                  <p className="flex-1 text-[#111827] leading-[1.7]">{parseInlineFormatting(cleanText)}</p>
                 </div>
               );
             } else if (isNumbered) {
@@ -1426,34 +1430,34 @@ export default function AICoach({
               const cleanText = match ? match[2] : trimmed;
               elements.push(
                 <div key={idx} className="flex items-start gap-2.5 pl-4 sm:pl-6 my-2">
-                  <span className="text-indigo-400 font-mono text-[13px] font-black shrink-0 w-5 text-right mt-0.5">{num}.</span>
-                  <p className="flex-1 text-slate-300 leading-[1.7]">{parseInlineFormatting(cleanText)}</p>
+                  <span className="text-indigo-600 font-mono text-[13px] font-black shrink-0 w-5 text-right mt-0.5">{num}.</span>
+                  <p className="flex-1 text-[#111827] leading-[1.7]">{parseInlineFormatting(cleanText)}</p>
                 </div>
               );
             } else if (trimmed.startsWith("###")) {
               const cleanText = trimmed.replace(/^###\s*/, "");
               elements.push(
-                <h4 key={idx} className="text-sm font-black text-purple-400 mt-6 mb-2 first:mt-0 uppercase tracking-widest border-l-2 border-purple-500/50 pl-2">
+                <h4 key={idx} className="text-sm font-black text-purple-700 mt-6 mb-2 first:mt-0 uppercase tracking-widest border-l-2 border-purple-600 pl-2">
                   {parseInlineFormatting(cleanText)}
                 </h4>
               );
             } else if (trimmed.startsWith("##")) {
               const cleanText = trimmed.replace(/^##\s*/, "");
               elements.push(
-                <h3 key={idx} className="text-base font-black text-slate-100 mt-8 mb-3 first:mt-0 tracking-wide border-b border-white/5 pb-1 select-none">
+                <h3 key={idx} className="text-base font-black text-[#111827] mt-8 mb-3 first:mt-0 tracking-wide border-b border-slate-200 pb-1 select-none">
                   {parseInlineFormatting(cleanText)}
                 </h3>
               );
             } else if (trimmed.startsWith("#")) {
               const cleanText = trimmed.replace(/^#\s*/, "");
               elements.push(
-                <h2 key={idx} className="text-lg font-black text-white mt-10 mb-4 first:mt-0 tracking-tight select-none">
+                <h2 key={idx} className="text-lg font-black text-[#111827] mt-10 mb-4 first:mt-0 tracking-tight select-none">
                   {parseInlineFormatting(cleanText)}
                 </h2>
               );
             } else {
               elements.push(
-                <p key={idx} className="leading-[1.7] text-slate-355 select-text my-2.5 pl-1">
+                <p key={idx} className="leading-[1.7] text-[#111827] select-text my-2.5 pl-1">
                   {parseInlineFormatting(trimmed)}
                 </p>
               );
@@ -1478,20 +1482,20 @@ export default function AICoach({
     const dataRows = rows.slice(1);
 
     return (
-      <div key={key} className="w-full my-4 overflow-x-auto rounded-xl border border-white/10 shadow-lg bg-slate-900/60 scrollbar-thin">
+      <div key={key} className="w-full my-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white scrollbar-thin">
         <table className="w-full text-left text-xs md:text-sm border-collapse min-w-[480px]">
           <thead>
-            <tr className="bg-white/[0.04] border-b border-white/10">
+            <tr className="bg-slate-50 border-b border-slate-200">
               {headers.map((h, i) => (
-                <th key={i} className="px-4 py-3 font-extrabold text-white uppercase tracking-wider">{h}</th>
+                <th key={i} className="px-4 py-3 font-extrabold text-[#111827] uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5 font-medium">
+          <tbody className="divide-y divide-slate-200/60 font-medium">
             {dataRows.map((row, rI) => (
-              <tr key={rI} className="hover:bg-white/[0.02] transition-colors leading-[1.6]">
+              <tr key={rI} className="hover:bg-slate-50/50 transition-colors leading-[1.6]">
                 {row.map((cell, cI) => (
-                  <td key={cI} className="px-4 py-2.5 text-slate-300">{cell}</td>
+                  <td key={cI} className="px-4 py-2.5 text-[#4B5563]">{cell}</td>
                 ))}
               </tr>
             ))}
@@ -1516,32 +1520,51 @@ export default function AICoach({
     return { cleanText, pdfName };
   };
 
-  return (
-    <div id="ai-coach-full-width-adaptive" className="w-full h-full flex flex-col md:flex-row bg-[#FFFFFF] overflow-hidden relative text-slate-800">
-      
-      {/* ================= BAR BUTTON MOBILE TRIGGER ============== */}
-      <div className="absolute top-4 left-4 z-50 md:hidden">
-        <button
-          onClick={() => setIsMobileSidebarOpen(true)}
-          className="p-2.5 bg-white border border-slate-200 shadow-sm rounded-xl text-slate-700 outline-none active:bg-slate-50"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-      </div>
+  // Mobile Scroll Direction Detector for immersive chat view
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const currentScrollY = e.currentTarget.scrollTop;
+    if (currentScrollY > 60) {
+      if (currentScrollY > lastScrollY.current + 8) {
+        // Scrolling down -> hide layout bars on mobile
+        setShowHeader(false);
+      } else if (currentScrollY < lastScrollY.current - 8) {
+        // Scrolling up -> show layout bars
+        setShowHeader(true);
+      }
+    } else {
+      // Near top -> show layout bars
+      showHeader === false && setShowHeader(true);
+    }
+    lastScrollY.current = currentScrollY;
+  };
 
-      {/* ========================================================= */}
-      {/* ================= SIDEBAR (LEFT SECTION) ================= */}
-      {/* ========================================================= */}
+  return (
+    <div 
+      id="ai-coach-full-width-adaptive" 
+      className="w-full h-full flex flex-col md:flex-row bg-[#FFFFFF] overflow-x-hidden md:overflow-hidden relative text-slate-800 box-border"
+      style={{ boxSizing: "border-box" }}
+    >
+      
+      {/* ================= MOBILE SIDEBAR BACKSTAGE OVERLAY ============== */}
+      {isMobileSidebarOpen && (
+        <div 
+          id="mobile-sidebar-overlay-backdrop"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 md:hidden animate-fadeIn"
+        />
+      )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-76 bg-[#F8FAFC] border-r border-slate-200 p-5 flex flex-col transform transition-all duration-300 ease-in-out shrink-0 md:relative md:scale-100 ${
-          isSidebarCollapsed 
-            ? "-translate-x-full md:w-0 md:p-0 md:border-r-0 md:translate-x-0" 
-            : "translate-x-0 md:w-76"
-        } ${
-          isMobileSidebarOpen 
-            ? "translate-x-0 z-50 shadow-2xl" 
-            : "-translate-x-full md:translate-x-0"
-        }`}
+        className={`fixed inset-y-0 left-0 bg-[#F8FAFC] border-r border-slate-200 p-5 flex flex-col transform transition-all duration-300 ease-in-out shrink-0 z-50
+          ${isMobileSidebarOpen 
+            ? "translate-x-0 shadow-2xl" 
+            : "-translate-x-full"
+          }
+          md:relative md:translate-x-0
+          ${isSidebarCollapsed
+            ? "md:w-0 md:p-0 md:border-r-0 md:opacity-0 md:overflow-hidden md:pointer-events-none"
+            : "md:w-76 md:p-5 md:border-r md:opacity-100"
+          }
+        `}
       >
         {/* Mobile Sidebar Close Button */}
         <div className="flex md:hidden justify-end mb-2">
@@ -1575,43 +1598,6 @@ export default function AICoach({
         </div>
 
         <hr className="border-slate-200/50 my-3 shrink-0" />
-
-        {/* Premium Workspace Master Navigation (The 8 requested options) */}
-        <div className="space-y-0.5 mb-2-5 select-none shrink-0 border-b border-slate-200/50 pb-2.5">
-          <p className="text-[8px] uppercase font-black text-slate-400 tracking-widest pl-2 mb-1.5">Premium Workspace</p>
-          {[
-            { id: "landing", label: "Dashboard", icon: <Compass className="w-4 h-4" /> },
-            { id: "planner", label: "Study Planner", icon: <BookOpen className="w-4 h-4" /> },
-            { id: "goals", label: "Tasks", icon: <CheckSquare className="w-4 h-4" /> },
-            { id: "notes", label: "Notes", icon: <PenTool className="w-4 h-4" /> },
-            { id: "analytics", label: "Analytics", icon: <TrendingUp className="w-4 h-4" /> },
-            { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
-            { id: "profile", label: "Profile", icon: <User className="w-4 h-4" /> },
-          ].map((nav) => (
-            <button
-              key={nav.id}
-              onClick={() => {
-                setIsMobileSidebarOpen(false);
-                const targetTab = nav.id === "profile" ? "settings" : nav.id;
-                onSelectTab?.(targetTab);
-              }}
-              className="w-full text-left p-1.5 px-2.5 rounded-xl flex items-center gap-3 transition-colors text-xs font-semibold text-slate-600 hover:text-[#2563EB] hover:bg-slate-200/50 cursor-pointer"
-            >
-              <div className="text-slate-400 group-hover:text-[#2563EB] transition-colors">{nav.icon}</div>
-              <span>{nav.label}</span>
-            </button>
-          ))}
-          <button
-            onClick={() => {
-              setIsMobileSidebarOpen(false);
-              logoutUser?.();
-            }}
-            className="w-full text-left p-1.5 px-2.5 rounded-xl flex items-center gap-3 transition-colors text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
-          >
-            <LogOut className="w-4 h-4 text-rose-400" />
-            <span>Logout</span>
-          </button>
-        </div>
 
         {/* Chat History Title and New Chat Trigger */}
         <div className="flex justify-between items-center mb-2 pl-1 select-none shrink-0">
@@ -1993,210 +1979,95 @@ export default function AICoach({
       {/* ========================================================= */}
       {/* ================= CONVERSATION PANEL (MAIN) ============= */}
       {/* ========================================================= */}
-      <section className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
+      <section className="flex-1 flex flex-col bg-[#FFFFFF] overflow-hidden">
         
         {/* ================= CONVERSATION HEADER ================= */}
-        <header className="px-4 md:px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0 bg-white shadow-sm z-30">
+        <header className={`px-3.5 md:px-6 h-[52px] md:h-18 border-b border-slate-100/80 flex items-center justify-between gap-4 shrink-0 bg-white/95 backdrop-blur-md sticky top-0 shadow-xs z-30 transition-transform duration-300 ease-in-out ${
+          showHeader ? "translate-y-0" : "-translate-y-full md:translate-y-0"
+        }`}>
           
-          {/* Active Title & Info */}
-          <div className="flex-1 min-w-0 flex items-center gap-2.5">
-            <GraduationCap className="w-5 h-5 text-[#2563EB] shrink-0 hidden sm:block animate-pulse" />
+          {/* Back button and Main Title */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            {/* Back to Dashboard Button inside the top-left */}
+            <button
+              onClick={() => onSelectTab?.("landing")}
+              className="p-1 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition-colors shadow-xs cursor-pointer inline-flex items-center justify-center shrink-0 w-8 h-8 sm:w-9 sm:h-9"
+              title="Return to Dashboard"
+            >
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+ 
             <div className="truncate">
-              <h2 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-1.5 truncate">
-                {editingSessionId === activeSession.id ? (
-                  <input
-                    type="text"
-                    value={editTitleText}
-                    onChange={(e) => setEditTitleText(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && finishRenameSession(activeSession.id)}
-                    onBlur={() => finishRenameSession(activeSession.id)}
-                    autoFocus
-                    className="bg-white border border-[#2563EB]/40 rounded-xl px-2 py-1 text-xs text-slate-800 max-w-sm shadow-sm outline-none font-bold"
-                  />
-                ) : (
-                  <span>{activeSession.title}</span>
-                )}
-                {activeSession.isPinned && (
-                  <Pin className="w-3 h-3 text-[#2563EB] fill-[#2563EB] shrink-0" />
-                )}
-              </h2>
-              <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mt-1 flex items-center gap-1.5 flex-wrap">
-                <span>Active subject: </span>
-                <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full font-black text-[9px]">
-                  {activeSession.subject}
-                </span>
-                <span>Mode: </span>
-                <span className="text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full font-black text-[9px]">
-                  {activeSession.chatMode}
-                </span>
+              <h1 className="text-xs sm:text-base font-black text-slate-800 tracking-tight flex items-center gap-1.5 truncate">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0 md:w-4 md:h-4" />
+                <span>AI Coach</span>
+              </h1>
+              <p className="text-[10px] text-slate-400 font-semibold tracking-wide mt-0.5 hidden sm:block">
+                Always here to help you learn better
               </p>
             </div>
           </div>
 
-          {/* Active Context Selections & 3-Dots Dropdown Trigger */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Collapsible Selectors Bar & Sidebar Toggle Button */}
+          <div className="flex items-center gap-2">
             
-            {/* Focus Subject dropdown */}
-            <select
-              value={activeSession.subject}
-              onChange={(e) => {
-                const updatedVal = e.target.value;
-                updateSessionSubject(updatedVal);
-                if (updatedVal !== "Custom Focus") {
-                  setCustomSubjectText("");
-                }
-              }}
-              className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px] text-slate-700 outline-none focus:border-[#2563EB]/40 transition-all font-black"
-            >
-              <option value="General Study" className="bg-white text-slate-800">🎓 General Study & Habits</option>
-              {Array.from(new Set([
-                ...subjects.map(s => s.title),
-                ...subjectsList.map(s => s.name)
-              ])).filter(Boolean).map((subjName) => {
-                const sObj = subjects.find(s => s.title === subjName);
-                const level = sObj?.level || "Medium";
-                return (
-                  <option key={subjName} value={subjName} className="bg-white text-slate-800">
+            {/* Collapsible mini settings selectors (highly compact, pristine, sleek pills!) */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              <select
+                value={activeSession.subject}
+                onChange={(e) => {
+                  const updatedVal = e.target.value;
+                  updateSessionSubject(updatedVal);
+                  if (updatedVal !== "Custom Focus") {
+                    setCustomSubjectText("");
+                  }
+                }}
+                className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full px-2.5 py-1 text-[10px] text-slate-650 font-bold outline-none cursor-pointer transition-colors"
+                title="Active subject filter"
+              >
+                <option value="General Study">🎓 General Study</option>
+                {Array.from(new Set([
+                  ...subjects.map(s => s.title),
+                  ...subjectsList.map(s => s.name)
+                ])).filter(Boolean).map((subjName) => (
+                  <option key={subjName} value={subjName}>
                     🎓 {subjName}
                   </option>
-                );
-              })}
-              <option value="Custom Focus" className="bg-white text-[#2563EB] font-extrabold">✍️ Custom Topic focus...</option>
-            </select>
+                ))}
+                <option value="Custom Focus">✍️ Custom Focus</option>
+              </select>
 
-            {activeSession.subject === "Custom Focus" && (
-              <input
-                type="text"
-                value={activeSession.customSubjectText || customSubjectText}
-                placeholder="Topic text..."
-                className="w-28 bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-[11px] text-slate-800 outline-none focus:border-[#2563EB]/40 animate-fadeIn font-bold shadow-sm"
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCustomSubjectText(val);
-                  setConversations(prev => prev.map(c => c.id === activeSessionId ? { ...c, customSubjectText: val } : c));
-                }}
-              />
-            )}
-
-            {/* Response Mode Selector */}
-            <select
-              value={activeSession.chatMode}
-              onChange={(e) => updateSessionMode(e.target.value as any)}
-              className="bg-white border border-[#2563EB]/20 rounded-xl px-2.5 py-1.5 text-[11px] text-[#2563EB] outline-none focus:border-[#2563EB]/40 transition-all font-black capitalize"
-            >
-              <option value="detailed" className="bg-white text-slate-800">📖 Detailed Explainer</option>
-              <option value="quick" className="bg-white text-slate-800">⚡ Quick Answer</option>
-              <option value="teacher" className="bg-white text-slate-800">🎓 Analogy / Teacher</option>
-              <option value="quiz" className="bg-white text-slate-800">📝 Quiz Mode</option>
-              <option value="flashcard" className="bg-white text-slate-800">🧠 Flashcards Matcher</option>
-              <option value="exam" className="bg-white text-slate-800">🎯 Exam Prep Mode</option>
-              <option value="motivation" className="bg-white text-slate-800">🔥 Motivation Booster</option>
-            </select>
-
-            {/* THREE DOTS DROPDOWN CONTAINER */}
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setActiveMenuId(activeMenuId === activeSession.id ? null : activeSession.id)}
-                className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 cursor-pointer transition-all shadow-sm"
+              <select
+                value={activeSession.chatMode}
+                onChange={(e) => updateSessionMode(e.target.value as any)}
+                className="bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full px-2.5 py-1 text-[10px] text-slate-650 font-bold outline-none cursor-pointer transition-colors capitalize"
+                title="Tutoring assistance mode"
               >
-                <MoreVertical className="w-4 h-4" />
-              </button>
-
-              <AnimatePresence>
-                {activeMenuId === activeSession.id && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl p-2 shadow-xl z-50 text-[11px] text-slate-600 space-y-1"
-                  >
-                    <button
-                      onClick={() => handleCreateNewChat()}
-                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-[#2563EB]"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Start New Study Chat
-                    </button>
-                    <button
-                      onClick={() => startRenameSession(activeSession.id, activeSession.title)}
-                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
-                    >
-                      <Edit className="w-3.5 h-3.5 text-slate-400" /> Rename Conversation
-                    </button>
-                    <button
-                      onClick={() => handleTogglePin(activeSession.id)}
-                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
-                    >
-                      <Pin className="w-3.5 h-3.5 text-slate-400" /> {activeSession.isPinned ? "Unpin Study Chat" : "Pin Study Chat"}
-                    </button>
-                    <button
-                      onClick={() => handleShareClipboard()}
-                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
-                    >
-                      <Share2 className="w-3.5 h-3.5 text-emerald-600" /> Share Invitation
-                    </button>
-                    <div className="border-t border-slate-100 my-1" />
-                    
-                    {/* Export Actions */}
-                    <button
-                      onClick={() => handleExportChat(activeSession.id, "markdown")}
-                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
-                    >
-                      <Download className="w-3.5 h-3.5 text-[#2563EB]" /> Export Chat (.md)
-                    </button>
-                    <button
-                      onClick={() => handleExportChat(activeSession.id, "json")}
-                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
-                    >
-                      <Download className="w-3.5 h-3.5 text-purple-600" /> Export Chat (.json)
-                    </button>
-                    
-                    <button
-                      onClick={() => handleClearConversation(activeSession.id)}
-                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-amber-600"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" /> Clear Discussion
-                    </button>
-                    
-                    <div className="border-t border-slate-100 my-1" />
-                    <span className="text-[9px] text-slate-450 font-extrabold uppercase px-2 block py-0.5">Prompt Accelerations</span>
-                    <button
-                      onClick={() => handleActionOnTopMsg("summary")}
-                      className="w-full text-left p-2 hover:bg-indigo-50 text-indigo-700 rounded-lg font-black flex items-center gap-2"
-                    >
-                      📚 Generate Summary Of Chat
-                    </button>
-                    <button
-                      onClick={() => handleActionOnTopMsg("quiz")}
-                      className="w-full text-left p-2 hover:bg-blue-50 text-blue-700 rounded-lg font-black flex items-center gap-2"
-                    >
-                      📝 Generate Quiz From Session
-                    </button>
-                    <button
-                      onClick={() => handleActionOnTopMsg("flashcards")}
-                      className="w-full text-left p-2 hover:bg-emerald-50 text-emerald-700 rounded-lg font-black flex items-center gap-2"
-                    >
-                      🧠 Create Flashcards From Session
-                    </button>
-                    <button
-                      onClick={() => handleActionOnTopMsg("notes")}
-                      className="w-full text-left p-2 hover:bg-pink-50 text-pink-700 rounded-lg font-black flex items-center gap-2"
-                    >
-                      📄 Convert Chat into Student Notes
-                    </button>
-
-                    <div className="border-t border-slate-100 my-1" />
-                    <button
-                      onClick={() => handleDeleteChat(activeSession.id)}
-                      className="w-full text-left p-2 hover:bg-rose-50 rounded-lg font-bold flex items-center gap-2 text-rose-600"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Delete Study Chat
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                <option value="detailed">📖 Detailed</option>
+                <option value="quick">⚡ Quick</option>
+                <option value="teacher">🎓 Analogy</option>
+                <option value="quiz">📝 Quiz</option>
+                <option value="flashcard">🧠 Flashcards</option>
+                <option value="exam">🎯 Exam Prep</option>
+                <option value="motivation">🔥 Motivation</option>
+              </select>
             </div>
 
+            {/* Sidebar toggle button to hide / show dialogues list */}
+            <button
+              id="sidebar-toggle-button"
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setIsMobileSidebarOpen(!isMobileSidebarOpen);
+                } else {
+                  setIsSidebarCollapsed(!isSidebarCollapsed);
+                }
+              }}
+              title={isSidebarCollapsed ? "Expand Dialogues History" : "Collapse Dialogues History"}
+              className="p-1.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 hover:text-slate-850 transition-colors flex items-center justify-center shrink-0 cursor-pointer shadow-xs bg-white"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
           </div>
 
         </header>
@@ -2206,7 +2077,8 @@ export default function AICoach({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`flex-1 overflow-y-auto space-y-6 scroll-smooth bg-slate-50 relative selection:bg-[#2563EB]/10 selection:text-[#2563EB] ${
+          onScroll={handleScroll}
+          className={`flex-1 overflow-y-auto space-y-4 sm:space-y-6 scroll-smooth bg-[#FFFFFF] relative selection:bg-[#2563EB]/10 selection:text-[#2563EB] ${
             isDraggingOver ? "outline-2 outline-dashed outline-[#2563EB]/50 bg-blue-50/50" : ""
           }`}
         >
@@ -2221,7 +2093,7 @@ export default function AICoach({
           )}
 
           {/* Centering envelope for comfortable standard reading width (ChatGPT alignment) */}
-          <div className="max-w-4xl w-full mx-auto px-3 sm:px-4 py-4 space-y-6 flex flex-col">
+          <div className="max-w-4xl w-full mx-auto px-2 sm:px-4 py-2.5 sm:py-4 space-y-4 sm:space-y-6 flex flex-col">
             
             {activeSession.messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400 max-w-lg mx-auto py-16">
@@ -2289,9 +2161,9 @@ export default function AICoach({
               return (
                 <div
                   key={i}
-                  className="w-full flex gap-3 sm:gap-4 items-start bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl animate-fadeIn mr-auto shadow-sm"
+                  className="w-full flex gap-2.5 sm:gap-4 items-start bg-white border border-slate-150 p-3 sm:p-5 rounded-2xl animate-fadeIn mr-auto shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
                 >
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#2563EB] shrink-0 text-xs font-black font-display shadow-sm">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#2563EB] shrink-0 text-[10px] sm:text-xs font-black font-display shadow-sm">
                     SF
                   </div>
 
@@ -2421,254 +2293,266 @@ export default function AICoach({
         )}
 
         {/* ================= CONVERSATION UTILITIES & QUICK ACTION BUTTONS HUB ================= */}
-        <footer className="p-6 bg-white border-t border-slate-100 shrink-0 z-10 space-y-4">
-          
-          {/* Image Upload Preview Bar */}
-          <AnimatePresence>
-            {uploadedImageBase64 && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-sm"
-              >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
-                    <img src={uploadedImageBase64} alt="Upload thumb" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className="text-xs font-black text-slate-700 truncate">{uploadedImageName || "Attached Image"}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ready to analyze with AI Coach</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUploadedImageBase64(null);
-                    setUploadedImageName("");
-                  }}
-                  className="p-1 px-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-[10px] uppercase font-black tracking-widest text-rose-600 transition-all cursor-pointer"
-                >
-                  Discard
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Dynamic Vision Actions Row (Only visible when image is uploaded) */}
-          <AnimatePresence>
-            {uploadedImageBase64 && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none select-none">
-                  {[
-                    { label: "Explain Image", icon: "💡", prompt: "Please analyze the visual content of this uploaded material and explain its main core concepts with logical clarity." },
-                    { label: "Summarize Notes", icon: "📑", prompt: "Extract and summarize these textbook pages or notes in a clean, comprehensive study guide with bullet points." },
-                    { label: "Solve Problem", icon: "📐", prompt: "Perform deep step-by-step problem solving for this visual math/science problem. Lay down the precise calculations." },
-                    { label: "Generate Quiz", icon: "📝", prompt: "Based on this uploaded question paper, diagram, or textbook content, create a short active recall quiz." },
-                    { label: "OCR Extract Text", icon: "🔍", prompt: "Perform clean, high-fidelity OCR text extraction of all visible words in this image, grouped by visual headers." },
-                    { label: "Create Flashcards", icon: "🧠", prompt: "Generate 3 high-yield active recall flashcard pairs (Question-Answer style) based on this educational content." },
-                    { label: "Identify Topics", icon: "🎯", prompt: "Identify the top curriculum headings and important academic topics highlighted in this material." },
-                    { label: "Find Mistakes", icon: "❌", prompt: "Review any visible answers or worked-out problems here, point out any procedural/logical mistakes, and explain correcting details." },
-                    { label: "Suggest Improvements", icon: "📈", prompt: "Analyze this homework or notes page and recommend 3 actionable improvements to score a top-tier academic mark." }
-                  ].map((act, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      disabled={isChatLoading}
-                      onClick={() => {
-                        handleSendCoachMessage(undefined, act.prompt);
-                      }}
-                      className="px-3 py-2 bg-blue-50/80 hover:bg-blue-100 border border-blue-200 text-[#2563EB] hover:text-[#2563EB]/90 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-sm"
-                    >
-                      <span>{act.icon}</span>
-                      <span>{act.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Quick tutor small helpers row (scrollbar inline horizontal slider) */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none select-none overflow-y-hidden">
-            {[
-              { label: "Explain Chapter", icon: "📚", text: "Walk me through the active parameters to explain this chapter with pristine logical clarity." },
-              { label: "Quiz Recalls", icon: "📝", text: "Provide a quick diagnostic recall quiz based on this subject's core concepts." },
-              { label: "Derive Formula", icon: "📐", text: "Let's perform a math/science trace derivation of the central formula step-by-step." },
-              { label: "Check Weaknesses", icon: "📊", text: "Identify potential exam pitfalls, and give tailored confidence level boosters." },
-              { label: "Time management", icon: "📅", text: "Explain how to pair my study time with Fajr early hours wakeup or other prayer intervals." },
-              { label: "Study Hacks", icon: "💡", text: "What is a useful scientific active-recall exam shortcut for this exact registry?" }
-            ].map((btn, idx) => (
-              <button
-                key={idx}
-                type="button"
-                disabled={isChatLoading}
-                onClick={() => {
-                  const subLabel = activeSession.subject === "General Study" ? "general studies" : activeSession.subject;
-                  const formatted = `[${btn.label} helper for ${subLabel}] - ${btn.text}`;
-                  handleSendCoachMessage(undefined, formatted);
-                }}
-                className="px-3.5 py-2 bg-slate-50 hover:bg-[#2563EB]/5 border border-slate-200 hover:border-[#2563EB]/35 rounded-xl text-[11px] text-slate-600 font-bold hover:text-[#2563EB] transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-sm"
-              >
-                <span>{btn.icon}</span>
-                <span>{btn.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* PDF attachment indicator chip bar if a study item is linked */}
-          <AnimatePresence>
-            {attachedPdf && (
-              <motion.div 
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 5 }}
-                className="inline-flex items-center gap-2 bg-[#2563EB]/10 border border-[#2563EB]/25 px-3.5 py-1.5 rounded-xl text-xs text-[#2563EB] font-bold select-none"
-              >
-                <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
-                <span className="truncate">Connected Study PDF: {attachedPdf.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setAttachedPdfId(null)}
-                  className="ml-2 hover:text-[#2563EB] text-slate-400 font-extrabold cursor-pointer text-xs"
-                >
-                  ✕
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Render PDF file picker dropdown list if open */}
-          {showPdfPicker && (
-            <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2 mt-2 max-h-48 overflow-y-auto shadow-xl animate-fadeIn relative z-25">
-              <div className="flex justify-between items-center text-[9px] text-slate-400 uppercase tracking-widest font-black select-none">
-                <span>Select active recall document source</span>
-                <button onClick={() => setShowPdfPicker(false)} className="hover:text-[#2563EB] cursor-pointer hover:underline text-[9px]">✕ Close</button>
-              </div>
-              {pdfs && pdfs.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1.5">
-                  {pdfs.map(pdf => (
-                    <button
-                      key={pdf.id}
-                      type="button"
-                      onClick={() => {
-                        setAttachedPdfId(pdf.id);
-                        setShowPdfPicker(false);
-                      }}
-                      className="text-left p-2.5 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-2 select-none"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-700 truncate">{pdf.name}</p>
-                        <p className="text-[9px] text-slate-400 font-mono mt-0.5">Chapters / total pages: {pdf.totalPages}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-400 italic p-1">No vault PDFs uploaded. Upload files first inside PDF Vault!</p>
-              )}
-            </div>
-          )}
-
-          {/* Form Input panel with Enter dispatch listener */}
-          <div className="flex gap-2 sm:gap-3">
-            <form
-              onSubmit={(e) => handleSendCoachMessage(e)}
-              className="flex-1 flex gap-2"
+        {(() => {
+          const hasMessages = activeSession.messages.length > 0;
+          return (
+            <footer 
+              className={`bg-white w-full box-border border-t border-slate-100 shrink-0 z-10 transition-all duration-300 ease-in-out ${
+                showHeader ? "translate-y-0" : "translate-y-full sm:translate-y-0"
+              } ${
+                hasMessages 
+                  ? "p-2 sm:p-3.5 space-y-2 sm:space-y-3" 
+                  : "p-3.5 sm:p-5 md:p-6 space-y-3 sm:space-y-4"
+              }`} 
+              style={{ boxSizing: "border-box" }}
             >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/png, image/jpeg, image/jpg, image/webp"
-                className="hidden"
-              />
               
-              {/* Button A: Screenshot/Image Upload */}
-              <button
-                type="button"
-                disabled={isChatLoading}
-                onClick={() => fileInputRef.current?.click()}
-                title="Upload textbook notes page, screenshot, or graph (JPG, PNG, WEBP)"
-                className="p-3 bg-white hover:bg-blue-50 border border-slate-200 hover:border-[#2563EB]/40 text-[#2563EB] rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50 shadow-sm"
-              >
-                <Image className="w-4 h-4" />
-              </button>
+              {/* Image Upload Preview Bar */}
+              <AnimatePresence>
+                {uploadedImageBase64 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-sm"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                        <img src={uploadedImageBase64} alt="Upload thumb" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-black text-slate-700 truncate">{uploadedImageName || "Attached Image"}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ready to analyze with AI Coach</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedImageBase64(null);
+                        setUploadedImageName("");
+                      }}
+                      className="p-1 px-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-[10px] uppercase font-black tracking-widest text-rose-600 transition-all cursor-pointer"
+                    >
+                      Discard
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Button B: PDF Vault Context Connector */}
-              <button
-                type="button"
-                disabled={isChatLoading}
-                onClick={() => setShowPdfPicker(!showPdfPicker)}
-                title="Attach PDF book chapters context from vault"
-                className={`p-3 bg-white hover:bg-blue-50 border border-slate-200 hover:border-[#2563EB]/40 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50 shadow-sm ${
-                  attachedPdfId ? "border-[#2563EB] text-[#2563EB]" : "text-slate-400"
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-              </button>
+              {/* Dynamic Vision Actions Row (Only visible when image is uploaded) */}
+              <AnimatePresence>
+                {uploadedImageBase64 && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none select-none">
+                      {[
+                        { label: "Explain Image", icon: "💡", prompt: "Please analyze the visual content of this uploaded material and explain its main core concepts with logical clarity." },
+                        { label: "Summarize Notes", icon: "📑", prompt: "Extract and summarize these textbook pages or notes in a clean, comprehensive study guide with bullet points." },
+                        { label: "Solve Problem", icon: "📐", prompt: "Perform deep step-by-step problem solving for this visual math/science problem. Lay down the precise calculations." },
+                        { label: "Generate Quiz", icon: "📝", prompt: "Based on this uploaded question paper, diagram, or textbook content, create a short active recall quiz." },
+                        { label: "OCR Extract Text", icon: "🔍", prompt: "Perform clean, high-fidelity OCR text extraction of all visible words in this image, grouped by visual headers." },
+                        { label: "Create Flashcards", icon: "🧠", prompt: "Generate 3 high-yield active recall flashcard pairs (Question-Answer style) based on this educational content." },
+                        { label: "Identify Topics", icon: "🎯", prompt: "Identify the top curriculum headings and important academic topics highlighted in this material." },
+                        { label: "Find Mistakes", icon: "❌", prompt: "Review any visible answers or worked-out problems here, point out any procedural/logical mistakes, and explain correcting details." },
+                        { label: "Suggest Improvements", icon: "📈", prompt: "Analyze this homework or notes page and recommend 3 actionable improvements to score a top-tier academic mark." }
+                      ].map((act, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          disabled={isChatLoading}
+                          onClick={() => {
+                            handleSendCoachMessage(undefined, act.prompt);
+                          }}
+                          className="px-3 py-2 bg-blue-50/80 hover:bg-blue-100 border border-blue-200 text-[#2563EB] hover:text-[#2563EB]/90 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-sm"
+                        >
+                          <span>{act.icon}</span>
+                          <span>{act.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Button C: Voice speech dictation Mic */}
-              <button
-                type="button"
-                disabled={isChatLoading}
-                onClick={handleToggleVoiceInput}
-                title="Speak text via vocal voice dictation"
-                className={`p-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50 shadow-sm ${
-                  isRecording ? "border-rose-500 text-rose-600 animate-pulse bg-rose-50" : "text-slate-400"
-                }`}
-              >
-                <Mic className="w-4 h-4" />
-              </button>
+              {/* Scrollable Quick Actions and Helpers row above the inputs */}
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none select-none overflow-y-hidden w-full max-w-full">
+                {[
+                  ...(pdfs && pdfs.length > 0 ? [{ label: attachedPdfId ? "Switch/Context PDF" : "Attach Study PDF", icon: "📚", action: () => setShowPdfPicker(!showPdfPicker) }] : []),
+                  { label: "Clear Chat", icon: "🔄", action: () => { if (window.confirm("Are you sure you want to clear conversation history?")) handleClearConversation(activeSession.id); } },
+                  { label: "Explain Chapter", icon: "📚", text: "Walk me through the active parameters to explain this chapter with pristine logical clarity." },
+                  { label: "Quiz Recalls", icon: "📝", text: "Provide a quick diagnostic recall quiz based on this subject's core concepts." },
+                  { label: "Derive Formula", icon: "📐", text: "Let's perform a math/science trace derivation of the central formula step-by-step." },
+                  { label: "Check Weaknesses", icon: "📊", text: "Identify potential exam pitfalls, and give tailored confidence level boosters." },
+                  { label: "Time management", icon: "📅", text: "Explain how to pair my study time with Fajr early hours wakeup or other prayer intervals." },
+                  { label: "Study Hacks", icon: "💡", text: "What is a useful scientific active-recall exam shortcut for this exact registry?" }
+                ].map((btn, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    disabled={isChatLoading}
+                    onClick={() => {
+                      if ("action" in btn && btn.action) {
+                        btn.action();
+                      } else if ("text" in btn) {
+                        const subLabel = activeSession.subject === "General Study" ? "general studies" : activeSession.subject;
+                        const formatted = `[${btn.label} helper for ${subLabel}] - ${btn.text}`;
+                        handleSendCoachMessage(undefined, formatted);
+                      }
+                    }}
+                    className={`px-3 py-1.5 hover:bg-[#2563EB]/5 border hover:border-[#2563EB]/35 rounded-full text-[10.5px] font-bold transition-all shrink-0 flex items-center gap-1 cursor-pointer disabled:opacity-50 select-none shadow-xs ${
+                      btn.label.includes("PDF") && attachedPdfId
+                        ? "bg-blue-50/60 border-[#2563EB] text-[#2563EB]"
+                        : "bg-slate-50 border-slate-200 text-slate-650 hover:text-[#2563EB]"
+                    }`}
+                  >
+                    <span>{btn.icon}</span>
+                    <span>{btn.label}</span>
+                  </button>
+                ))}
+              </div>
 
-              {/* Text Area Box */}
-              <input
-                type="text"
-                value={coachInput}
-                onChange={(e) => setCoachInput(e.target.value)}
-                placeholder={
-                  isRecording 
-                    ? "Listening to voice dictation... Speak into microphone."
-                    : activeSession.subject === "General Study"
-                    ? "Ask about active recall, physics solvers, notes summaries..."
-                    : activeSession.subject === "Custom Focus"
-                    ? `Ask about ${activeSession.customSubjectText || customSubjectText || "your custom topic"}...`
-                    : `Ask AI Coach about ${activeSession.subject}...`
-                }
-                className="flex-1 bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]/45 transition-all font-medium min-w-0 shadow-sm"
-              />
+              {/* PDF attachment indicator chip bar if a study item is linked */}
+              <AnimatePresence>
+                {attachedPdf && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 5 }}
+                    className="inline-flex items-center gap-2 bg-[#2563EB]/10 border border-[#2563EB]/25 px-3 py-1 rounded-full text-[10.5px] text-[#2563EB] font-bold select-none max-w-full"
+                  >
+                    <FileText className="w-3 h-3 text-[#2563EB] shrink-0" />
+                    <span className="truncate">Active Source: {attachedPdf.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setAttachedPdfId(null)}
+                      className="ml-1 text-slate-450 hover:text-[#2563EB] font-black cursor-pointer text-[10px]"
+                    >
+                      ✕
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              {/* Send Button */}
-              <button
-                type="submit"
-                disabled={(!coachInput.trim() && !uploadedImageBase64) || isChatLoading}
-                className="px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-100 disabled:to-slate-100 disabled:bg-slate-100 disabled:text-slate-400 rounded-2xl text-white transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-md disabled:cursor-not-allowed"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+              {/* Render PDF file picker dropdown list if open */}
+              {showPdfPicker && (
+                <div className="p-3 bg-white border border-slate-200 rounded-2xl space-y-2 mt-1.5 max-h-48 overflow-y-auto shadow-xl animate-fadeIn relative z-25 w-full">
+                  <div className="flex justify-between items-center text-[9px] text-slate-400 uppercase tracking-widest font-black select-none">
+                    <span>Select active study source</span>
+                    <button onClick={() => setShowPdfPicker(false)} className="hover:text-[#2563EB] cursor-pointer hover:underline text-[9px]">✕ Close</button>
+                  </div>
+                  {pdfs && pdfs.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      {pdfs.map(pdf => (
+                        <button
+                          key={pdf.id}
+                          type="button"
+                          onClick={() => {
+                            setAttachedPdfId(pdf.id);
+                            setShowPdfPicker(false);
+                          }}
+                          className="text-left p-2 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-2 select-none min-w-0"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-slate-700 truncate">{pdf.name}</p>
+                            <p className="text-[9px] text-slate-400 font-mono mt-0.5">Chapters / total pages: {pdf.totalPages}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic p-1">No vault PDFs uploaded. Upload files first inside PDF Vault!</p>
+                  )}
+                </div>
+              )}
 
-            {/* Clear conversation helper button */}
-            <button
-              onClick={() => {
-                if (window.confirm("Are you sure you want to clear conversation history?")) {
-                  handleClearConversation(activeSession.id);
-                }
-              }}
-              title="Clear conversation"
-              className="p-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-400 hover:text-rose-600 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-sm"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          </div>
+              {/* Unified Dynamic Input Form Container */}
+              <div className="w-full box-border">
+                <form
+                  onSubmit={(e) => handleSendCoachMessage(e)}
+                  className={`flex items-center bg-white border border-slate-200 shadow-sm transition-all duration-300 w-full ${
+                    hasMessages 
+                      ? "rounded-[24px] pl-2 pr-1.5 h-[48px] sm:h-[52px] gap-1" 
+                      : "rounded-[24px] p-1.5 pl-2.5 pr-1.5 h-[56px] gap-2"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/png, image/jpeg, image/jpg, image/webp"
+                    className="hidden"
+                  />
+                  
+                  {/* Attachment Button */}
+                  <button
+                    type="button"
+                    disabled={isChatLoading}
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Upload material or screenshot (JPG, PNG, WEBP)"
+                    className={`text-[#2563EB] hover:bg-blue-50/50 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 cursor-pointer transition-all ${
+                      hasMessages 
+                        ? "w-[40px] h-[40px] min-h-[40px] min-w-[40px]" 
+                        : "w-[44px] h-[44px] min-h-[44px] min-w-[44px] border border-slate-100 bg-slate-50/30"
+                    }`}
+                  >
+                    <Image className={`${hasMessages ? "w-4 h-4" : "w-4.5 h-4.5"}`} />
+                  </button>
 
-        </footer>
+                  {/* Voice Button */}
+                  <button
+                    type="button"
+                    disabled={isChatLoading}
+                    onClick={handleToggleVoiceInput}
+                    title="Speak text via voice dictation"
+                    className={`rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 cursor-pointer transition-all ${
+                      isRecording 
+                        ? "bg-rose-50 border border-rose-450 text-rose-600 animate-pulse" 
+                        : "text-slate-400 hover:bg-slate-50"
+                    } ${
+                      hasMessages 
+                        ? "w-[40px] h-[40px] min-h-[40px] min-w-[40px]" 
+                        : "w-[44px] h-[44px] min-h-[44px] min-w-[44px] border border-slate-100 bg-slate-50/30"
+                    }`}
+                  >
+                    <Mic className={`${hasMessages ? "w-4 h-4" : "w-4.5 h-4.5"}`} />
+                  </button>
+
+                  {/* Text Input (Borderless) */}
+                  <input
+                    type="text"
+                    value={coachInput}
+                    onChange={(e) => setCoachInput(e.target.value)}
+                    placeholder={
+                      isRecording 
+                        ? "Dictating... Speak clearly."
+                        : activeSession.subject === "General Study"
+                        ? "Ask AI Coach anything..."
+                        : activeSession.subject === "Custom Focus"
+                        ? `Ask about ${activeSession.customSubjectText || customSubjectText || "topic"}...`
+                        : `Ask about ${activeSession.subject}...`
+                    }
+                    className="flex-1 bg-transparent border-0 px-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:outline-none focus:ring-0 w-full min-w-0"
+                  />
+
+                  {/* Send Button */}
+                  <button
+                    type="submit"
+                    disabled={(!coachInput.trim() && !uploadedImageBase64) || isChatLoading}
+                    className="w-[44px] h-[44px] min-h-[44px] min-w-[44px] bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-100 disabled:to-slate-100 disabled:bg-slate-100 disabled:text-slate-400 text-white rounded-full transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-xs disabled:cursor-not-allowed"
+                  >
+                    <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  </button>
+                </form>
+              </div>
+
+            </footer>
+          );
+        })()}
 
       </section>
 
