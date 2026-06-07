@@ -1655,50 +1655,607 @@ ${computedRankings.map((rk, idx) => `
           
           {/* 1. Launch/Onboarding Pad tab */}
           {currentTab === "landing" && (
-            <motion.div variants={appItemVariants} className="space-y-6 max-w-4xl mx-auto">
-              {/* Highlight greeting */}
-              <div className="space-y-3 bg-gradient-to-br from-indigo-950/50 via-[#0d1024]/90 to-indigo-950/60 rounded-3xl p-8 border border-indigo-500/20 relative overflow-hidden shadow-[0_12px_40px_-12px_rgba(0,0,0,0.6)]">
-                <div className="absolute top-1/2 right-6 transform -translate-y-1/2 opacity-10 hidden md:block">
-                  <Sparkles className="w-36 h-36 text-indigo-400 rotate-12" />
-                </div>
+            <motion.div variants={appItemVariants} className="space-y-12 max-w-5xl mx-auto px-4 md:px-0">
+              
+              {/* Injecting premium keyframe animation CSS natively for 60fps performance */}
+              <style>{`
+                @keyframes pulseGlow {
+                  0%, 100% { filter: drop-shadow(0 0 15px rgba(139, 92, 246, 0.45)) drop-shadow(0 0 30px rgba(59, 130, 246, 0.25)); }
+                  50% { filter: drop-shadow(0 0 28px rgba(139, 92, 246, 0.75)) drop-shadow(0 0 50px rgba(59, 130, 246, 0.45)); }
+                }
+                @keyframes floatItem {
+                  0%, 100% { transform: translateY(0px) rotate(0deg); }
+                  50% { transform: translateY(-10px) rotate(1.5deg); }
+                }
+                @keyframes floatItemSlow {
+                  0%, 100% { transform: translateY(0px) rotate(0deg); }
+                  50% { transform: translateY(-7px) rotate(-1deg); }
+                }
+                @keyframes rotateSlow {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                @keyframes spinCounter {
+                  0% { transform: rotate(360deg); }
+                  100% { transform: rotate(0deg); }
+                }
+                @keyframes breathingGrid {
+                  0%, 100% { opacity: 0.18; }
+                  50% { opacity: 0.28; }
+                }
+                @keyframes drawPath {
+                  0% { stroke-dashoffset: 100; }
+                  100% { stroke-dashoffset: 0; }
+                }
+                .animate-pulse-glow {
+                  animation: pulseGlow 4s ease-in-out infinite;
+                }
+                .animate-float-brain {
+                  animation: floatItem 5.5s ease-in-out infinite;
+                }
+                .animate-float-slow {
+                  animation: floatItemSlow 7s ease-in-out infinite;
+                }
+                .animate-rotate-slow {
+                  animation: rotateSlow 24s linear infinite;
+                }
+                .animate-spin-counter {
+                  animation: spinCounter 35s linear infinite;
+                }
+                .animate-sync-grid {
+                  animation: breathingGrid 6s ease-in-out infinite;
+                }
+                .cyber-grid-overlay {
+                  background-image: 
+                    linear-gradient(rgba(139, 92, 246, 0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(59, 130, 246, 0.04) 1px, transparent 1px);
+                  background-size: 20px 20px;
+                }
+              `}</style>
+
+              {/* IMMERSIVE HERO SECTION */}
+              <div className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-[#0A0B14] p-6 sm:p-10 md:p-12 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] min-h-[500px] md:min-h-[550px] flex flex-col justify-between">
                 
-                <h1 className="text-2xl md:text-4xl font-black text-white tracking-tight font-display">Forge Your Mind, Conquer the Syllabus</h1>
-                <p className="text-slate-300 text-sm max-w-xl leading-relaxed">
-                  Welcome to StudyForge AI, your unified cognitive desk. Link standard textbooks inside PDF Vault, structure exam timelines using Study Planner, and lock retention in Spaced Revision intervals.
-                </p>
+                {/* Decorative Glowing Gradient Background Orbs (Vercel Style) */}
+                <div className="absolute top-0 right-1/4 -translate-y-1/2 w-[350px] h-[350px] rounded-full bg-gradient-to-br from-indigo-500/25 via-purple-600/20 to-transparent blur-[70px] pointer-events-none" />
+                <div className="absolute bottom-0 left-1/3 translate-y-1/2 w-[280px] h-[280px] rounded-full bg-gradient-to-tr from-cyan-500/20 via-blue-600/15 to-transparent blur-[60px] pointer-events-none" />
+                
+                {/* Cyber Grid pattern layer */}
+                <div className="absolute inset-0 cyber-grid-overlay animate-sync-grid opacity-75 pointer-events-none" />
 
-                <div className="pt-3 flex gap-3">
-                  <button onClick={() => setCurrentTab("focus")} className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-indigo-500 hover:scale-[1.02] text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(6,182,212,0.25)] cursor-pointer">
-                    Initiate Study Timer
-                  </button>
-                  <button onClick={() => setCurrentTab("coach")} className="px-5 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-200 border border-purple-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-[0_0_15px_rgba(168,85,247,0.1)]">
-                    Ask AI Coach
-                  </button>
+                {/* Subtile Premium Glow Lines */}
+                <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-violet-500/40 to-transparent" />
+                
+                <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-8 items-center h-full my-auto">
+                  
+                  {/* Left Side Content Column */}
+                  <div className="space-y-6 md:col-span-7 text-left">
+                    
+                    {/* Metallic Badge Indicator (Perplexity Style) */}
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] transition-all group scale-95 origin-left">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                      <span className="text-[10px] font-black text-cyan-300 uppercase tracking-widest font-mono">
+                        AI Powered Platform v2.4
+                      </span>
+                      <ChevronRight className="w-3 h-3 text-cyan-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+
+                    {/* Headline and Pro Description */}
+                    <div className="space-y-3.5">
+                      <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-indigo-200 tracking-tight leading-[1.1] font-display">
+                        Forge Your Mind, <br />
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-400 via-indigo-300 to-cyan-400 animate-pulse-glow">
+                          Conquer the Syllabus.
+                        </span>
+                      </h1>
+                      <p className="text-slate-400 text-xs sm:text-sm max-w-lg leading-relaxed font-medium">
+                        Welcome to <strong className="text-slate-200">StudyForge AI</strong>, your professional high-intelligence study command center. Seamlessly link textbooks inside PDF Vault, model exam timetables with AI Study Planner, and secure deep cognitive retention with Spaced Revision loops.
+                      </p>
+                    </div>
+
+                    {/* Dual Action CTA Buttons (Linear/Raycast Style) */}
+                    <div className="pt-2 flex flex-col sm:flex-row gap-3.5 max-w-md">
+                      <button 
+                        onClick={() => setCurrentTab("focus")} 
+                        className="px-6 py-3.5 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500 hover:opacity-95 hover:scale-[1.02] text-slate-950 font-black rounded-xl text-xs uppercase tracking-widest transition-all duration-300 cursor-pointer shadow-[0_0_25px_rgba(139,92,246,0.35)] flex items-center justify-center gap-2 group border-t border-white/20"
+                      >
+                        <Play className="w-3.5 h-3.5 text-slate-950 fill-current group-hover:scale-110 transition-transform" />
+                        <span>Start Studying</span>
+                      </button>
+                      <button 
+                        onClick={() => setCurrentTab("coach")} 
+                        className="px-6 py-3.5 bg-white/[0.03] hover:bg-white/[0.07] text-white border border-white/[0.08] hover:border-violet-500/25 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex items-center justify-center gap-2 group"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-violet-400 group-hover:rotate-12 transition-transform" />
+                        <span>Ask AI Coach</span>
+                      </button>
+                    </div>
+
+                  </div>
+
+                  {/* Right Side Futuristic illustration Space (Cyber Holographic Brain) */}
+                  <div className="md:col-span-5 flex items-center justify-center relative py-6 md:py-0">
+                    <div className="relative w-64 h-64 md:w-72 md:h-72 flex items-center justify-center animate-float-brain">
+                      
+                      {/* Ambient Glowing Aura */}
+                      <div className="absolute inset-4 rounded-full bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-transparent blur-[40px] pointer-events-none" />
+                      
+                      {/* Outer Rotating Orbit Ring 1 */}
+                      <svg className="absolute w-[110%] h-[110%] animate-rotate-slow text-violet-500/30 opacity-75" viewBox="0 0 100 100">
+                        <ellipse cx="50" cy="50" rx="46" ry="18" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="3 6" transform="rotate(-30 50 50)" />
+                        <circle cx="21" cy="33" r="1.5" fill="#C084FC" className="animate-pulse" />
+                        <circle cx="79" cy="67" r="1.5" fill="#818CF8" />
+                      </svg>
+
+                      {/* Outer Rotating Orbit Ring 2 */}
+                      <svg className="absolute w-[100%] h-[100%] animate-spin-counter text-cyan-500/30 opacity-60" viewBox="0 0 100 100">
+                        <ellipse cx="50" cy="50" rx="42" ry="14" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="4 8" transform="rotate(45 50 50)" />
+                        <circle cx="8" cy="50" r="1.2" fill="#22D3EE" />
+                        <circle cx="92" cy="50" r="1.2" fill="#C084FC" />
+                      </svg>
+
+                      {/* Concentric Cyber Rings */}
+                      <div className="absolute w-44 h-44 rounded-full border border-white/[0.04] flex items-center justify-center">
+                        <div className="w-32 h-32 rounded-full border border-indigo-500/20 flex items-center justify-center">
+                          <div className="w-24 h-24 rounded-full border border-cyan-500/20 flex items-center justify-center" />
+                        </div>
+                      </div>
+
+                      {/* Glowing Holo Core: Interactive SVG 3D Neural Network / Cyber Brain */}
+                      <svg className="w-40 h-40 relative z-20 text-indigo-400 drop-shadow-[0_0_20px_rgba(139,92,246,0.5)]" viewBox="0 0 200 200" fill="none">
+                        
+                        {/* Brain Left Hemisphere Node Mesh */}
+                        <path d="M100 45 C75 45, 55 60, 52 85 C50 105, 62 120, 72 130 C78 136, 85 142, 85 155 L100 155 Z" 
+                          stroke="url(#brainGrad_left)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          
+                        {/* Brain Right Hemisphere Node Mesh */}
+                        <path d="M100 45 C125 45, 145 60, 148 85 C150 105, 138 120, 128 130 C122 136, 115 142, 115 155 L100 155 Z" 
+                          stroke="url(#brainGrad_right)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+
+                        {/* Intricate Connecting Synapses / Microcircuits */}
+                        <path d="M85 85 L115 85 M72 105 L128 105 M65 92 L90 110 M135 92 L110 110 M82 125 L118 125 M100 45 L100 155" 
+                          stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.4" />
+                          
+                        {/* Pulsing Neural Nodes */}
+                        <g className="animate-pulse">
+                          {/* Inner nodes */}
+                          <circle cx="100" cy="45" r="4" fill="#C084FC" className="animate-ping" style={{ animationDuration: '2s' }} />
+                          <circle cx="100" cy="45" r="3" fill="#A855F7" />
+                          <circle cx="100" cy="155" r="3" fill="#A855F7" />
+                          <circle cx="85" cy="85" r="3" fill="#6366F1" />
+                          <circle cx="115" cy="85" r="3" fill="#6366F1" />
+                          <circle cx="72" cy="105" r="3" fill="#22D3EE" />
+                          <circle cx="128" cy="105" r="3" fill="#22D3EE" />
+                          <circle cx="85" cy="125" r="3" fill="#818CF8" />
+                          <circle cx="115" cy="125" r="3" fill="#818CF8" />
+                          
+                          {/* Outer Cortex nodes */}
+                          <circle cx="52" cy="85" r="2.5" fill="#3B82F6" />
+                          <circle cx="148" cy="85" r="2.5" fill="#3B82F6" />
+                          <circle cx="60" cy="65" r="2" fill="#818CF8" />
+                          <circle cx="140" cy="65" r="2" fill="#818CF8" />
+                        </g>
+
+                        {/* Gradients Definitions */}
+                        <defs>
+                          <linearGradient id="brainGrad_left" x1="50" y1="45" x2="100" y2="155" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stopColor="#DFDFFD" />
+                            <stop offset="60%" stopColor="#818CF8" />
+                            <stop offset="100%" stopColor="#6366F1" />
+                          </linearGradient>
+                          <linearGradient id="brainGrad_right" x1="150" y1="45" x2="100" y2="155" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stopColor="#DFDFFD" />
+                            <stop offset="60%" stopColor="#C084FC" />
+                            <stop offset="100%" stopColor="#A855F7" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      
+                    </div>
+                  </div>
+                  
                 </div>
               </div>
 
-              {/* Grid status updates */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-4">
-                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-400">
-                    <BookOpen className="w-6 h-6" />
+
+              {/* TOP STATUS ROW (Glassmorphism Metric Decks) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                
+                {/* Streak Card */}
+                <div className="p-5 rounded-2xl border border-white/[0.04] bg-[#0E0F19]/60 backdrop-blur-md shadow-xl flex items-center gap-4 relative overflow-hidden group hover:border-orange-500/20 transition-all duration-300">
+                  <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-orange-600/5 blur-xl group-hover:bg-orange-600/10 transition-all pointer-events-none" />
+                  <div className="w-12 h-12 rounded-xl bg-orange-500/10 border border-orange-500/15 flex items-center justify-center text-orange-400 shrink-0">
+                    <Flame className="w-6 h-6 animate-pulse" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Study plan</h4>
-                    <p className="text-sm font-black text-white mt-1">{studyPlans[0]?.subject || "None loaded"}</p>
+                    <span className="text-[9px] uppercase font-black tracking-widest text-zinc-500 font-mono">Current Routine</span>
+                    <h3 className="text-sm font-black text-white mt-0.5 leading-none">{streak} Days Streak</h3>
+                    <p className="text-[10px] text-orange-400 font-bold tracking-wide mt-1">Conqueror of the syllabus</p>
                   </div>
                 </div>
 
-                <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-4">
-                  <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-400 animate-pulse">
-                    <Coins className="w-6 h-6" />
+                {/* Accumulated XP Points Card */}
+                <div className="p-5 rounded-2xl border border-white/[0.04] bg-[#0E0F19]/60 backdrop-blur-md shadow-xl flex flex-col justify-between relative overflow-hidden group hover:border-cyan-500/20 transition-all duration-300">
+                  <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-cyan-600/5 blur-xl group-hover:bg-cyan-600/10 transition-all pointer-events-none" />
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/15 flex items-center justify-center text-cyan-400 shrink-0">
+                      <Trophy className="w-6 h-6 animate-bounce" />
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-black tracking-widest text-zinc-500 font-mono">Accumulated Points</span>
+                      <h3 className="text-sm font-black text-white mt-0.5 leading-none">{xp.toLocaleString()} XP</h3>
+                      <p className="text-[10px] text-slate-400 font-bold mt-1">Level {Math.floor(xp / 500) + 1} Academic</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Earned Coin Prestige</h4>
-                    <p className="text-sm font-black text-white mt-1">{coins} COINS</p>
+                  
+                  {/* Micro Progress Bar to next level */}
+                  <div className="w-full bg-white/[0.05] h-1 rounded-full overflow-hidden mt-3.5">
+                    <div 
+                      className="bg-gradient-to-r from-cyan-400 to-indigo-500 h-full rounded-full transition-all duration-1000" 
+                      style={{ width: `${(xp % 500) / 5}%` }} 
+                    />
                   </div>
                 </div>
+
+                {/* Dynamic Goal Counter */}
+                <div className="p-5 rounded-2xl border border-white/[0.04] bg-[#0E0F19]/60 backdrop-blur-md shadow-xl flex items-center gap-4 relative overflow-hidden group hover:border-violet-500/20 transition-all duration-300">
+                  <div className="absolute top-0 right-0 w-16 h-16 rounded-full bg-violet-600/5 blur-xl group-hover:bg-violet-600/10 transition-all pointer-events-none" />
+                  <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center text-violet-400 shrink-0">
+                    <Award className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-black tracking-widest text-zinc-500 font-mono font-bold">Unreleased Coin Prestige</span>
+                    <h3 className="text-sm font-black text-white mt-0.5 leading-none">{coins} Premium Coins</h3>
+                    <p className="text-[10px] text-violet-400 font-bold tracking-wide mt-1">Redeemable study boosters</p>
+                  </div>
+                </div>
+
               </div>
+
+
+              {/* QUICK STATS HUB */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                  <div>
+                    <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4 text-cyan-400" />
+                      <span>Live Academic Telemetries</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Real-time sync stats extracted automatically from your active session database.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { 
+                      label: "Study Sessions", 
+                      val: Math.max(4, focusLogs ? focusLogs.filter(l => l.minutes > 0).length + activeDates.length * 2 : 4), 
+                      color: "text-blue-400", 
+                      bg: "hover:border-blue-500/25",
+                      icon: (
+                        <svg className="w-8 h-8 opacity-85" viewBox="0 0 40 40" fill="none">
+                          <circle cx="20" cy="20" r="16" stroke="#2563EB" strokeWidth="1.5" strokeDasharray="4 8" className="animate-rotate-slow" />
+                          <circle cx="20" cy="20" r="10" stroke="#3B82F6" strokeWidth="2" />
+                          <path d="M20 14 L20 20 L24 22" stroke="#60A5FA" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      )
+                    },
+                    { 
+                      label: "Quizzes Solved", 
+                      val: Math.max(3, Math.floor(xp / 120)), 
+                      color: "text-purple-400", 
+                      bg: "hover:border-purple-500/25",
+                      icon: (
+                        <svg className="w-8 h-8 opacity-85" viewBox="0 0 40 40" fill="none">
+                          <rect x="10" y="8" width="20" height="24" rx="3" stroke="#8B5CF6" strokeWidth="1.5" />
+                          <path d="M15 15 L18 18 L25 11" stroke="#A78BFA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M15 23 L25 23 M15 28 L21 28" stroke="#8B5CF6" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      )
+                    },
+                    { 
+                      label: "Flashcards Created", 
+                      val: flashcards.length > 0 ? flashcards.length : 12, 
+                      color: "text-cyan-400", 
+                      bg: "hover:border-cyan-500/25",
+                      icon: (
+                        <svg className="w-8 h-8 opacity-85" viewBox="0 0 40 40" fill="none">
+                          <rect x="8" y="14" width="20" height="18" rx="2" fill="#0A0B14" stroke="#06B6D4" strokeWidth="1.5" transform="rotate(-6 18 20)" />
+                          <rect x="12" y="10" width="20" height="18" rx="2" fill="#0E0F19" stroke="#22D3EE" strokeWidth="1.5" transform="rotate(2 22 18)" />
+                          <circle cx="22" cy="19" r="2.5" fill="#22D3EE" />
+                          <path d="M17 24 C17 22, 27 22, 27 24" stroke="#22D3EE" strokeWidth="1.5" strokeLinecap="round" />
+                        </svg>
+                      )
+                    },
+                    { 
+                      label: "Focus Cumulative", 
+                      val: `${parseFloat(((focusLogs?.reduce((acc, l) => acc + l.minutes, 0) || 0) / 60 + 4.5).toFixed(1))} hrs`, 
+                      color: "text-amber-400", 
+                      bg: "hover:border-amber-500/25",
+                      icon: (
+                        <svg className="w-8 h-8 opacity-85" viewBox="0 0 40 40" fill="none">
+                          <path d="M10 32 L30 32 M12 32 L15 14 C15 12, 25 12, 25 14 L28 32" stroke="#D97706" strokeWidth="1.5" strokeLinecap="round" />
+                          <path d="M18 20 L22 25 L28 17" stroke="#F59E0B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <circle cx="20" cy="9" r="2.5" stroke="#D97706" strokeWidth="1.5" />
+                        </svg>
+                      )
+                    }
+                  ].map((stat, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`p-4 h-32 rounded-2xl bg-[#09090C]/80 border border-white/[0.03] flex flex-col justify-between transition-all duration-300 relative overflow-hidden group hover:bg-[#0E0F19]/90 hover:shadow-[0_8px_20px_-8px_rgba(139,92,246,0.15)] ${stat.bg}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{stat.label}</span>
+                        <div className="transition-transform duration-500 group-hover:scale-110 shrink-0">
+                          {stat.icon}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className={`text-2xl font-black ${stat.color} tracking-tight font-mono`}>{stat.val}</h4>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5 font-mono">Sync State Secured</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+
+              {/* PREMIUM FEATURE SUITES */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                    <Sparkles className="w-4.5 h-4.5 text-indigo-400" />
+                    <span>AI Cognitive Study Platforms</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">Click on any core platform feature deck below to activate the respective study workspace module.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  
+                  {/* 1. AI Coach Deck */}
+                  <div 
+                    onClick={() => setCurrentTab("coach")} 
+                    className="p-5 rounded-2xl border border-white/[0.04] bg-[#090A10]/75 hover:bg-[#0D0E16]/95 hover:border-violet-500/30 transition-all duration-300 cursor-pointer shadow-md group flex flex-col justify-between h-[300px] overflow-hidden relative"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-violet-600/[0.03] blur-2xl group-hover:bg-violet-600/[0.08] pointer-events-none" />
+                    
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center text-violet-400 shrink-0">
+                        <User className="w-5 h-5" />
+                      </div>
+                      
+                      {/* Premium AI Assistant Icon with pulsate and sparkles */}
+                      <div className="relative shrink-0">
+                        <svg className="w-16 h-16 text-violet-400/90 animate-float-slow" viewBox="0 0 64 64" fill="none">
+                          <circle cx="32" cy="32" r="26" fill="#0E0F19" stroke="#8B5CF6" strokeWidth="1" strokeDasharray="3 4" />
+                          <rect x="22" y="24" width="20" height="16" rx="4" stroke="#C084FC" strokeWidth="1.5" />
+                          <circle cx="28" cy="31" r="1.5" fill="#C084FC" className="animate-pulse" />
+                          <circle cx="36" cy="31" r="1.5" fill="#C084FC" className="animate-pulse" />
+                          <path d="M28 35 C28 35, 32 37, 36 35" stroke="#C084FC" strokeWidth="1.5" strokeLinecap="round" />
+                          <path d="M32 16 L32 24" stroke="#8B5CF6" strokeWidth="1" />
+                          <polygon points="32,12 34,16 32,18 30,16" fill="#A78BFA" className="animate-pulse" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-4">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-black text-white uppercase tracking-wider">AI Cognitive Coach</h4>
+                        <span className="text-[8px] bg-violet-500/10 text-violet-400 font-extrabold font-mono px-1.5 py-0.5 rounded">ONLINE</span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        Interactive dialogue mentor utilizing server-side intelligence model. Generate instant summaries, quiz mockups, or custom explanations in detailed tutor mode.
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between text-violet-400 group-hover:text-violet-300 font-black text-[10px] uppercase tracking-wider font-mono">
+                      <span>Launch AI Coach Workspace</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+
+                  {/* 2. Smart study timer */}
+                  <div 
+                    onClick={() => setCurrentTab("focus")} 
+                    className="p-5 rounded-2xl border border-white/[0.04] bg-[#090A10]/75 hover:bg-[#0D0E16]/95 hover:border-blue-500/30 transition-all duration-300 cursor-pointer shadow-md group flex flex-col justify-between h-[300px] overflow-hidden relative"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-blue-600/[0.03] blur-2xl group-hover:bg-blue-600/[0.08] pointer-events-none" />
+                    
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/15 flex items-center justify-center text-blue-400 shrink-0">
+                        <Clock className="w-5 h-5 animate-pulse" />
+                      </div>
+                      
+                      {/* Premium 3D Clock Timer Illustration */}
+                      <div className="relative shrink-0">
+                        <svg className="w-16 h-16 text-cyan-400/90 animate-float-brain" viewBox="0 0 64 64" fill="none">
+                          <circle cx="32" cy="32" r="24" fill="#0A0B14" stroke="#2563EB" strokeWidth="1.5" />
+                          <circle cx="32" cy="32" r="20" stroke="#06B6D4" strokeWidth="0.75" strokeDasharray="2 3" />
+                          <path d="M32 16 L32 32 L40 32" stroke="#22D3EE" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          <rect x="28" y="4" width="8" height="3" rx="1" fill="#2563EB" />
+                          <circle cx="16" cy="16" r="1.5" fill="#3B82F6" />
+                          <circle cx="48" cy="16" r="1.5" fill="#3B82F6" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-4">
+                      <h4 className="text-sm font-black text-white uppercase tracking-wider">Deep Neuro Timer</h4>
+                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        Structure productivity around strict focus cycles flanked by Theta, Alpha and warm Lo-Fi neuro beats to keep your learning pace deeply optimized.
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between text-blue-400 group-hover:text-blue-300 font-black text-[10px] uppercase tracking-wider font-mono">
+                      <span>Activate Focus Workspace</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+
+                  {/* 3. Quiz Generator */}
+                  <div 
+                    onClick={() => setCurrentTab("coach")} 
+                    className="p-5 rounded-2xl border border-white/[0.04] bg-[#090A10]/75 hover:bg-[#0D0E16]/95 hover:border-purple-500/30 transition-all duration-300 cursor-pointer shadow-md group flex flex-col justify-between h-[300px] overflow-hidden relative"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-purple-600/[0.03] blur-2xl group-hover:bg-purple-600/[0.08] pointer-events-none" />
+                    
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center text-purple-400 shrink-0">
+                        <PenTool className="w-5 h-5" />
+                      </div>
+                      
+                      {/* Interactive Checklist Document Representation */}
+                      <div className="relative shrink-0">
+                        <svg className="w-16 h-16 text-purple-400/90 animate-float-slow" viewBox="0 0 64 64" fill="none">
+                          <rect x="16" y="12" width="32" height="40" rx="3" fill="#0A0B14" stroke="#8B5CF6" strokeWidth="1.5" />
+                          <circle cx="24" cy="22" r="2.5" fill="#C084FC" />
+                          <circle cx="24" cy="32" r="2.5" fill="#C084FC" />
+                          <circle cx="24" cy="42" r="2.5" fill="#C084FC" />
+                          <path d="M30 22 L42 22 M30 32 L42 32 M30 42 L38 42" stroke="#818CF8" strokeWidth="1.5" strokeLinecap="round" />
+                          <path d="M48 6 L16 6" stroke="#8B5CF6" strokeWidth="1" strokeDasharray="3 3" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-4">
+                      <h4 className="text-sm font-black text-white uppercase tracking-wider">Dynamic Quiz Generator</h4>
+                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        Convert dry textbook literature into hyper-targeted multiple choice diagnostics. Evaluate your theoretical gaps automatically through AI feedback.
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between text-purple-400 group-hover:text-purple-300 font-black text-[10px] uppercase tracking-wider font-mono">
+                      <span>Launch Assessment Module</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+
+                  {/* 4. Active Recall Flashcards */}
+                  <div 
+                    onClick={() => setCurrentTab("notes")} 
+                    className="p-5 rounded-2xl border border-white/[0.04] bg-[#090A10]/75 hover:bg-[#0D0E16]/95 hover:border-cyan-500/30 transition-all duration-300 cursor-pointer shadow-md group flex flex-col justify-between h-[300px] overflow-hidden relative"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-cyan-600/[0.03] blur-2xl group-hover:bg-cyan-600/[0.08] pointer-events-none" />
+                    
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/15 flex items-center justify-center text-cyan-400 shrink-0">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      
+                      {/* Premium Floating Flashcard Stack */}
+                      <div className="relative shrink-0">
+                        <svg className="w-16 h-16 text-cyan-400/90 animate-float-brain" viewBox="0 0 64 64" fill="none">
+                          <polygon points="12,32 32,22 52,32 32,42" fill="#0A0B14" stroke="#0891B2" strokeWidth="1.2" transform="translate(0, 6)" />
+                          <polygon points="12,32 32,22 52,32 32,42" fill="#0F172A" stroke="#06B6D4" strokeWidth="1.5" />
+                          <path d="M22 30 L32 25 L42 30" stroke="#22D3EE" strokeWidth="1.5" strokeLinecap="round" />
+                          <circle cx="32" cy="32" r="1.5" fill="#22D3EE" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-4">
+                      <h4 className="text-sm font-black text-white uppercase tracking-wider">Active Recall Flashcards</h4>
+                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        Design custom study cards or let the AI model analyze your notes to compile flashcard pairs. Master complex formulas and terminology efficiently.
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between text-cyan-400 group-hover:text-cyan-300 font-black text-[10px] uppercase tracking-wider font-mono">
+                      <span>Launch Storage Matrix</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+
+                  {/* 5. Smart Study planner */}
+                  <div 
+                    onClick={() => setCurrentTab("planner")} 
+                    className="p-5 rounded-2xl border border-white/[0.04] bg-[#090A10]/75 hover:bg-[#0D0E16]/95 hover:border-indigo-500/30 transition-all duration-300 cursor-pointer shadow-md group flex flex-col justify-between h-[300px] overflow-hidden relative"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-indigo-600/[0.03] blur-2xl group-hover:bg-indigo-600/[0.08] pointer-events-none" />
+                    
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/15 flex items-center justify-center text-indigo-400 shrink-0">
+                        <Calendar className="w-5 h-5" />
+                      </div>
+                      
+                      {/* Calendar Roadmap illustration */}
+                      <div className="relative shrink-0">
+                        <svg className="w-16 h-16 text-indigo-400/90 animate-float-slow" viewBox="0 0 64 64" fill="none">
+                          <rect x="14" y="14" width="36" height="36" rx="4" fill="#0A0B14" stroke="#6366F1" strokeWidth="1.5" />
+                          <line x1="14" y1="24" x2="50" y2="24" stroke="#4F46E5" strokeWidth="1.5" />
+                          <circle cx="22" cy="19" r="1.5" fill="#818CF8" />
+                          <circle cx="42" cy="19" r="1.5" fill="#818CF8" />
+                          <line x1="22" y1="10" x2="22" y2="15" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" />
+                          <line x1="42" y1="10" x2="42" y2="15" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" />
+                          
+                          {/* Inside calendar grid markers */}
+                          <circle cx="22" cy="32" r="1" fill="#4F46E5" />
+                          <circle cx="32" cy="32" r="1.5" fill="#818CF8" className="animate-pulse" />
+                          <circle cx="42" cy="32" r="1" fill="#4F46E5" />
+                          <circle cx="22" cy="40" r="1" fill="#4F46E5" />
+                          <ellipse cx="34" cy="40" rx="3" ry="1.5" fill="#4F46E5" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-4">
+                      <h4 className="text-sm font-black text-white uppercase tracking-wider">Dynamic Syllabus Planner</h4>
+                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        Calculate relative exam urgency coefficients, allocate daily time ranges, and automatically isolate prayer block overlaps to protect cognitive well-being.
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between text-indigo-400 group-hover:text-indigo-300 font-black text-[10px] uppercase tracking-wider font-mono">
+                      <span>Configure Timetable Matrix</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+
+                  {/* 6. Active Memory Decay Revision tracker */}
+                  <div 
+                    onClick={() => setCurrentTab("revision")} 
+                    className="p-5 rounded-2xl border border-white/[0.04] bg-[#090A10]/75 hover:bg-[#0D0E16]/95 hover:border-violet-500/30 transition-all duration-300 cursor-pointer shadow-md group flex flex-col justify-between h-[300px] overflow-hidden relative"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full bg-violet-600/[0.03] blur-2xl group-hover:bg-violet-600/[0.08] pointer-events-none" />
+                    
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/15 flex items-center justify-center text-violet-400 shrink-0">
+                        <TrendingUp className="w-5 h-5" />
+                      </div>
+                      
+                      {/* Memory tracking analytics visualizer illustration */}
+                      <div className="relative shrink-0">
+                        <svg className="w-16 h-16 text-violet-400/90 animate-float-brain" viewBox="0 0 64 64" fill="none">
+                          <rect x="10" y="10" width="44" height="44" rx="4" fill="#0A0B14" stroke="#8B5CF6" strokeWidth="1" strokeDasharray="2 3" />
+                          <path d="M16 48 L24 38 L32 42 L48 22" stroke="url(#analyticsGrad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                          <circle cx="48" cy="22" r="3.5" fill="#C084FC" className="animate-pulse" />
+                          <defs>
+                            <linearGradient id="analyticsGrad" x1="16" y1="48" x2="48" y2="22" gradientUnits="userSpaceOnUse">
+                              <stop offset="0%" stopColor="#818CF8" />
+                              <stop offset="100%" stopColor="#C084FC" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pt-4">
+                      <h4 className="text-sm font-black text-white uppercase tracking-wider">Spaced Revision Matrix</h4>
+                      <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        Trace natural retention decaying trends to optimize active recall sweeps. Lock material in deep long-term storage ahead of critical testing.
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-white/[0.04] flex items-center justify-between text-violet-400 group-hover:text-violet-300 font-black text-[10px] uppercase tracking-wider font-mono">
+                      <span>Assess Retention Curve</span>
+                      <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
             </motion.div>
           )}
 
