@@ -1570,7 +1570,7 @@ ${computedRankings.map((rk, idx) => `
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="flex bg-[#070913] text-slate-100 min-h-screen font-sans antialiased overflow-hidden selection:bg-indigo-500/35 selection:text-white pb-16 md:pb-0 w-full"
+          className={`flex ${currentTab === 'coach' ? 'bg-white text-slate-800' : 'bg-[#070913] text-slate-100'} min-h-screen font-sans antialiased overflow-hidden selection:bg-indigo-500/35 selection:text-white ${currentTab === 'coach' ? '' : 'pb-16 md:pb-0'} w-full`}
         >
       
       {/* Toast Alert elements */}
@@ -1589,58 +1589,62 @@ ${computedRankings.map((rk, idx) => `
       )}
 
       {/* Modern responsive Sidebar Navigation */}
-      <motion.div
-        initial={{ x: -30, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ delay: 0.15, duration: 0.8, ease: "easeOut" }}
-        className="shrink-0"
-      >
-        <Sidebar 
-          currentTab={currentTab}
-          onSelectTab={setCurrentTab}
-          strictFocusMode={strictFocusMode}
-          profile={{ name: userName, xp, level: Math.floor(xp / 500) + 1, coins, streak, lastActiveDate: "", isPro: false }}
-          streak={streak}
-          xp={xp}
-        />
-      </motion.div>
+      {currentTab !== "coach" && (
+        <motion.div
+          initial={{ x: -30, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ delay: 0.15, duration: 0.8, ease: "easeOut" }}
+          className="shrink-0"
+        >
+          <Sidebar 
+            currentTab={currentTab}
+            onSelectTab={setCurrentTab}
+            strictFocusMode={strictFocusMode}
+            profile={{ name: userName, xp, level: Math.floor(xp / 500) + 1, coins, streak, lastActiveDate: "", isPro: false }}
+            streak={streak}
+            xp={xp}
+          />
+        </motion.div>
+      )}
 
       {/* Main Study Arena */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto pt-16 md:pt-0">
+      <div className={`flex-1 flex flex-col min-w-0 h-screen ${currentTab === 'coach' ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-16 md:pt-0'}`}>
         
         {/* Arena Header */}
-        <header className="h-20 shrink-0 flex items-center justify-between px-6 md:px-8 border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-20">
-          <div>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono leading-none mb-1">Scholar workspace</p>
-            <h2 className="text-base font-black text-white font-display">{userName}</h2>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden lg:flex items-center gap-2 bg-emerald-500/5 px-3.5 py-1.5 rounded-xl border border-emerald-500/10">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
-                Gemini Models Online
-              </span>
+        {currentTab !== "coach" && (
+          <header className="h-20 shrink-0 flex items-center justify-between px-6 md:px-8 border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-20">
+            <div>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono leading-none mb-1">Scholar workspace</p>
+              <h2 className="text-base font-black text-white font-display">{userName}</h2>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#121214] border border-white/10 px-3 py-1.5 rounded-xl text-cyan-400 font-extrabold text-xs shadow-[0_0_15px_rgba(6,182,212,0.05)] font-mono">
-              <Flame className="w-3.5 h-3.5 animate-bounce" />
-              <span>{streak} Day Study Streak</span>
-            </div>
+            <div className="flex items-center gap-4">
+              <div className="hidden lg:flex items-center gap-2 bg-emerald-500/5 px-3.5 py-1.5 rounded-xl border border-emerald-500/10">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
+                  Gemini Models Online
+                </span>
+              </div>
 
-            <div className="text-right">
-              <p className="text-sm font-black text-white tracking-tight">{xp.toLocaleString()} XP</p>
-              <p className="text-[9px] uppercase tracking-wider text-cyan-400 font-extrabold font-mono">Accumulated Points</p>
+              <div className="flex items-center gap-2 bg-[#121214] border border-white/10 px-3 py-1.5 rounded-xl text-cyan-400 font-extrabold text-xs shadow-[0_0_15px_rgba(6,182,212,0.05)] font-mono">
+                <Flame className="w-3.5 h-3.5 animate-bounce" />
+                <span>{streak} Day Study Streak</span>
+              </div>
+
+              <div className="text-right">
+                <p className="text-sm font-black text-white tracking-tight">{xp.toLocaleString()} XP</p>
+                <p className="text-[9px] uppercase tracking-wider text-cyan-400 font-extrabold font-mono">Accumulated Points</p>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         {/* Tab view divisions controller */}
         <motion.div 
           initial="hidden"
           animate="visible"
           variants={appContainerVariants}
-          className="flex-1 p-6 md:p-8 space-y-8 animate-fade-in"
+          className={currentTab === "coach" ? "flex-1 h-screen flex flex-col min-w-0" : "flex-1 p-6 md:p-8 space-y-8 animate-fade-in"}
         >
           <React.Suspense fallback={
             <div className="flex flex-col items-center justify-center py-24 space-y-4">
@@ -1807,6 +1811,13 @@ ${computedRankings.map((rk, idx) => `
                 goals={goals}
                 userName={userName}
                 onTriggerNotification={triggerNotification}
+                onSelectTab={setCurrentTab}
+                logoutUser={() => {
+                  if (confirm("⚠️ Clear scholar session and logout?")) {
+                    setUserName("");
+                    setShowOnboardingModal(true);
+                  }
+                }}
               />
             </React.Suspense>
           )}

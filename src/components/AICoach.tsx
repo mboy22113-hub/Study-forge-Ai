@@ -37,7 +37,14 @@ import {
   Image,
   Mic,
   FileText,
-  Paperclip
+  Paperclip,
+  Compass,
+  User,
+  LogOut,
+  Settings,
+  PenTool,
+  TrendingUp,
+  CheckSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AcademicSubject, StudyPlan, QuizQuestion, Flashcard } from "../types";
@@ -398,6 +405,8 @@ interface AICoachProps {
   goals: any[];
   userName: string;
   onTriggerNotification: (title: string, msg: string) => void;
+  onSelectTab?: (tab: string) => void;
+  logoutUser?: () => void;
 }
 
 export default function AICoach({
@@ -415,8 +424,12 @@ export default function AICoach({
   streak,
   goals,
   userName,
-  onTriggerNotification
+  onTriggerNotification,
+  onSelectTab,
+  logoutUser
 }: AICoachProps) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
   // 1. Core Conversations State & Hydration
   const [conversations, setConversations] = useState<ChatSession[]>(() => {
     try {
@@ -1504,13 +1517,13 @@ export default function AICoach({
   };
 
   return (
-    <div id="ai-coach-full-width-adaptive" className="w-full h-full flex flex-col md:flex-row bg-[#08080c] overflow-hidden relative">
+    <div id="ai-coach-full-width-adaptive" className="w-full h-full flex flex-col md:flex-row bg-[#FFFFFF] overflow-hidden relative text-slate-800">
       
       {/* ================= BAR BUTTON MOBILE TRIGGER ============== */}
       <div className="absolute top-4 left-4 z-50 md:hidden">
         <button
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="p-2.5 bg-slate-900 border border-white/10 rounded-xl text-white outline-none active:bg-slate-800"
+          className="p-2.5 bg-white border border-slate-200 shadow-sm rounded-xl text-slate-700 outline-none active:bg-slate-50"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -1520,58 +1533,118 @@ export default function AICoach({
       {/* ================= SIDEBAR (LEFT SECTION) ================= */}
       {/* ========================================================= */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#08080c] border-r border-white/5 p-5 flex flex-col transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${
-          isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:flex"
+        className={`fixed inset-y-0 left-0 z-40 w-76 bg-[#F8FAFC] border-r border-slate-200 p-5 flex flex-col transform transition-all duration-300 ease-in-out shrink-0 md:relative md:scale-100 ${
+          isSidebarCollapsed 
+            ? "-translate-x-full md:w-0 md:p-0 md:border-r-0 md:translate-x-0" 
+            : "translate-x-0 md:w-76"
+        } ${
+          isMobileSidebarOpen 
+            ? "translate-x-0 z-50 shadow-2xl" 
+            : "-translate-x-full md:translate-x-0"
         }`}
       >
         {/* Mobile Sidebar Close Button */}
         <div className="flex md:hidden justify-end mb-2">
           <button
             onClick={() => setIsMobileSidebarOpen(false)}
-            className="p-1.5 text-slate-400 hover:text-white rounded"
+            className="p-1.5 hover:bg-slate-200 text-slate-500 hover:text-slate-900 rounded-xl"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Brand / New Chat Header Container */}
-        <div className="flex flex-col space-y-4 mb-5">
+        {/* Brand / Premium Identity */}
+        <div className="flex flex-col space-y-3 mb-4 select-none">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-black uppercase tracking-widest text-indigo-400 pl-1 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" /> StudyForge AI Coach
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#2563EB] bg-[#2563EB]/10 border border-[#2563EB]/15 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> StudyForge Coach
             </span>
-            <span className="text-[9px] bg-indigo-500/10 text-indigo-300 border border-indigo-400/10 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest animate-pulse">
-              Core PRO
+            <span className="text-[8px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/15 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+              ONLINE
             </span>
           </div>
 
+          <div className="bg-white border border-slate-200/60 p-3 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+            <p className="text-xs font-semibold text-slate-400">Personal workspace</p>
+            <p className="text-sm font-black text-slate-900 mt-0.5 truncate">🎓 {userName || "Premium Scholar"}</p>
+            <div className="flex items-center gap-3 mt-1.5 font-mono text-[9px] text-slate-500">
+              <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-[#2563EB]" /> {xp.toLocaleString()} XP</span>
+              <span className="flex items-center gap-1"><Flame className="w-3 h-3 text-[#2563EB]" /> {streak}d streak</span>
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-slate-200/50 my-3 shrink-0" />
+
+        {/* Premium Workspace Master Navigation (The 8 requested options) */}
+        <div className="space-y-0.5 mb-2-5 select-none shrink-0 border-b border-slate-200/50 pb-2.5">
+          <p className="text-[8px] uppercase font-black text-slate-400 tracking-widest pl-2 mb-1.5">Premium Workspace</p>
+          {[
+            { id: "landing", label: "Dashboard", icon: <Compass className="w-4 h-4" /> },
+            { id: "planner", label: "Study Planner", icon: <BookOpen className="w-4 h-4" /> },
+            { id: "goals", label: "Tasks", icon: <CheckSquare className="w-4 h-4" /> },
+            { id: "notes", label: "Notes", icon: <PenTool className="w-4 h-4" /> },
+            { id: "analytics", label: "Analytics", icon: <TrendingUp className="w-4 h-4" /> },
+            { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
+            { id: "profile", label: "Profile", icon: <User className="w-4 h-4" /> },
+          ].map((nav) => (
+            <button
+              key={nav.id}
+              onClick={() => {
+                setIsMobileSidebarOpen(false);
+                const targetTab = nav.id === "profile" ? "settings" : nav.id;
+                onSelectTab?.(targetTab);
+              }}
+              className="w-full text-left p-1.5 px-2.5 rounded-xl flex items-center gap-3 transition-colors text-xs font-semibold text-slate-600 hover:text-[#2563EB] hover:bg-slate-200/50 cursor-pointer"
+            >
+              <div className="text-slate-400 group-hover:text-[#2563EB] transition-colors">{nav.icon}</div>
+              <span>{nav.label}</span>
+            </button>
+          ))}
           <button
-            onClick={() => handleCreateNewChat()}
-            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-black tracking-wide transition-all shadow-lg hover:shadow-indigo-500/15 shrink-0 flex items-center justify-center gap-2 cursor-pointer"
+            onClick={() => {
+              setIsMobileSidebarOpen(false);
+              logoutUser?.();
+            }}
+            className="w-full text-left p-1.5 px-2.5 rounded-xl flex items-center gap-3 transition-colors text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
           >
-            <Plus className="w-4 h-4" /> Start New Chat
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>Logout</span>
           </button>
         </div>
 
-        {/* Live Filter Search Conversations */}
-        <div className="relative mb-5 shrink-0">
-          <Search className="absolute left-3.5 top-2.5 w-3.5 h-3.5 text-slate-500" />
+        {/* Chat History Title and New Chat Trigger */}
+        <div className="flex justify-between items-center mb-2 pl-1 select-none shrink-0">
+          <span className="text-[8px] uppercase font-black text-slate-400 tracking-widest">
+            Study Dialogues
+          </span>
+          <button
+            onClick={() => handleCreateNewChat()}
+            className="text-xs font-black text-[#2563EB] hover:bg-[#2563EB]/10 p-1 px-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer select-none"
+          >
+            <Plus className="w-3.5 h-3.5" /> Start New
+          </button>
+        </div>
+
+        {/* Search bar inside Sidebar */}
+        <div className="relative mb-3.5 shrink-0 select-none">
+          <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search study chats..."
-            className="w-full bg-white/[0.03] border border-white/10 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 transition-all font-medium"
+            placeholder="Search study dialogues..."
+            className="w-full bg-white border border-slate-200 rounded-xl pl-8.5 pr-3 py-1.5 text-xs text-slate-700 placeholder-slate-400 outline-none focus:border-[#2563EB]/60 focus:ring-2 focus:ring-[#2563EB]/5 transition-all font-medium"
           />
         </div>
 
         {/* Scrolling Conversations Cohorts */}
-        <div className="flex-1 overflow-y-auto space-y-6 scrollbar-none pr-1">
+        <div className="flex-1 overflow-y-auto space-y-4 scrollbar-none pr-0.5">
           {/* Pinned Section */}
           {pinedConversations.length > 0 && (
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#93c5fd] flex items-center gap-1 pl-1">
-                <Pin className="w-3 h-3 text-sky-400 fill-sky-400" /> Pinned Chats
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#2563EB] flex items-center gap-1 pl-1 select-none">
+                <Pin className="w-2.5 h-2.5 text-[#2563EB] fill-[#2563EB]" /> Pinned dialogues
               </span>
               <div className="space-y-1">
                 {pinedConversations.map((c) => (
@@ -1581,10 +1654,10 @@ export default function AICoach({
                       setActiveSessionId(c.id);
                       setIsMobileSidebarOpen(false);
                     }}
-                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                    className={`group relative flex items-center justify-between p-2.5 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
                       activeSessionId === c.id
-                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
-                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                        ? "bg-[#2563EB]/5 border-[#2563EB]/15 text-[#2563EB]"
+                        : "bg-transparent border-transparent text-slate-600 hover:bg-slate-100"
                     }`}
                   >
                     <div className="flex-1 truncate pr-2">
@@ -1596,29 +1669,29 @@ export default function AICoach({
                           onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
                           onBlur={() => finishRenameSession(c.id)}
                           autoFocus
-                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          className="w-full bg-white text-slate-800 border-b border-[#2563EB] outline-none py-0.5 text-xs font-bold"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <div className="truncate flex items-center gap-1.5">
-                          <span className="shrink-0">💬</span>
-                          <span>{c.title}</span>
+                          <span className="shrink-0 text-slate-400">💬</span>
+                          <span className="truncate">{c.title}</span>
                         </div>
                       )}
-                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
-                        {c.subject} · {c.messages.length} notes
+                      <div className="text-[9px] text-slate-400 font-semibold mt-0.5 uppercase tracking-wider font-mono">
+                        {c.subject} · {c.messages.length} log
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleTogglePin(c.id);
                         }}
                         title="Unpin"
-                        className="p-1 text-slate-400 hover:text-[#93c5fd] rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-[#2563EB] rounded transition-all shadow-sm border border-slate-100"
                       >
-                        <Pin className="w-3 h-3 text-sky-400 fill-sky-400" />
+                        <Pin className="w-3 h-3 text-[#2563EB] fill-[#2563EB]" />
                       </button>
                       <button
                         onClick={(e) => {
@@ -1626,7 +1699,7 @@ export default function AICoach({
                           handleDeleteChat(c.id);
                         }}
                         title="Delete"
-                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-rose-500 rounded transition-all shadow-sm border border-slate-100"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -1639,8 +1712,8 @@ export default function AICoach({
 
           {/* Today Cohort */}
           {groupedConversations.today.length > 0 && (
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1 block">
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#2563EB] pl-1 block select-none">
                 Today
               </span>
               <div className="space-y-1">
@@ -1651,13 +1724,13 @@ export default function AICoach({
                       setActiveSessionId(c.id);
                       setIsMobileSidebarOpen(false);
                     }}
-                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                    className={`group relative flex items-center justify-between p-2.5 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
                       activeSessionId === c.id
-                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
-                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                        ? "bg-[#2563EB]/5 border-[#2563EB]/15 text-[#2563EB]"
+                        : "bg-transparent border-transparent text-slate-600 hover:bg-slate-100"
                     }`}
                   >
-                    <div className="flex-1 truncate pr-2">
+                    <div className="flex-1 min-w-0 pr-2">
                       {editingSessionId === c.id ? (
                         <input
                           type="text"
@@ -1666,27 +1739,27 @@ export default function AICoach({
                           onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
                           onBlur={() => finishRenameSession(c.id)}
                           autoFocus
-                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          className="w-full bg-white text-slate-800 border-b border-[#2563EB] outline-none py-0.5 text-xs font-bold"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <div className="truncate flex items-center gap-1.5">
-                          <span className="shrink-0 text-slate-500">💬</span>
-                          <span>{c.title}</span>
+                          <span className="shrink-0 text-slate-400">💬</span>
+                          <span className="truncate">{c.title}</span>
                         </div>
                       )}
-                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
-                        {c.subject} · {c.messages.length} notes
+                      <div className="text-[9px] text-slate-400 font-semibold mt-0.5 uppercase tracking-wider font-mono">
+                        {c.subject} · {c.messages.length} log
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleTogglePin(c.id);
                         }}
                         title="Pin Chat"
-                        className="p-1 text-slate-400 hover:text-sky-400 rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-[#2563EB] rounded transition-all shadow-sm border border-slate-100"
                       >
                         <Pin className="w-3 h-3" />
                       </button>
@@ -1696,7 +1769,7 @@ export default function AICoach({
                           handleDeleteChat(c.id);
                         }}
                         title="Delete Chat"
-                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-rose-500 rounded transition-all shadow-sm border border-slate-100"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -1709,8 +1782,8 @@ export default function AICoach({
 
           {/* This Week Cohort */}
           {groupedConversations.thisWeek.length > 0 && (
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1 block">
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#2563EB] pl-1 block select-none">
                 This Week
               </span>
               <div className="space-y-1">
@@ -1721,13 +1794,13 @@ export default function AICoach({
                       setActiveSessionId(c.id);
                       setIsMobileSidebarOpen(false);
                     }}
-                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                    className={`group relative flex items-center justify-between p-2.5 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
                       activeSessionId === c.id
-                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
-                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                        ? "bg-[#2563EB]/5 border-[#2563EB]/15 text-[#2563EB]"
+                        : "bg-transparent border-transparent text-slate-600 hover:bg-slate-100"
                     }`}
                   >
-                    <div className="flex-1 truncate pr-2">
+                    <div className="flex-1 min-w-0 pr-2">
                       {editingSessionId === c.id ? (
                         <input
                           type="text"
@@ -1736,27 +1809,27 @@ export default function AICoach({
                           onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
                           onBlur={() => finishRenameSession(c.id)}
                           autoFocus
-                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          className="w-full bg-white text-slate-800 border-b border-[#2563EB] outline-none py-0.5 text-xs font-bold"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <div className="truncate flex items-center gap-1.5">
-                          <span className="shrink-0 text-slate-500">💬</span>
-                          <span>{c.title}</span>
+                          <span className="shrink-0 text-slate-400">💬</span>
+                          <span className="truncate">{c.title}</span>
                         </div>
                       )}
-                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
-                        {c.subject} · {c.messages.length} notes
+                      <div className="text-[9px] text-slate-400 font-semibold mt-0.5 uppercase tracking-wider font-mono">
+                        {c.subject} · {c.messages.length} log
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleTogglePin(c.id);
                         }}
                         title="Pin Chat"
-                        className="p-1 text-slate-400 hover:text-sky-400 rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-[#2563EB] rounded transition-all shadow-sm border border-slate-100"
                       >
                         <Pin className="w-3 h-3" />
                       </button>
@@ -1766,7 +1839,7 @@ export default function AICoach({
                           handleDeleteChat(c.id);
                         }}
                         title="Delete Chat"
-                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-rose-500 rounded transition-all shadow-sm border border-slate-100"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -1779,8 +1852,8 @@ export default function AICoach({
 
           {/* Older Cohort */}
           {groupedConversations.older.length > 0 && (
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1 block">
+            <div className="space-y-1.5">
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#2563EB] pl-1 block select-none">
                 Older
               </span>
               <div className="space-y-1">
@@ -1791,14 +1864,14 @@ export default function AICoach({
                       setActiveSessionId(c.id);
                       setIsMobileSidebarOpen(false);
                     }}
-                    className={`group relative flex items-center justify-between p-3 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
+                    className={`group relative flex items-center justify-between p-2.5 rounded-xl cursor-pointer border transition-all text-xs font-bold ${
                       activeSessionId === c.id
-                        ? "bg-indigo-600/10 border-indigo-500/30 text-white"
-                        : "bg-white/[0.01] border-white/5 text-slate-400 hover:bg-white/[0.03]"
+                        ? "bg-[#2563EB]/5 border-[#2563EB]/15 text-[#2563EB]"
+                        : "bg-transparent border-transparent text-slate-600 hover:bg-slate-100"
                     }`}
                   >
-                    <div className="flex-1 truncate pr-2">
-                      {editingSessionId === c.id ? (
+                    <div className="flex-1 min-w-0 pr-2">
+                       {editingSessionId === c.id ? (
                         <input
                           type="text"
                           value={editTitleText}
@@ -1806,27 +1879,27 @@ export default function AICoach({
                           onKeyDown={(e) => e.key === "Enter" && finishRenameSession(c.id)}
                           onBlur={() => finishRenameSession(c.id)}
                           autoFocus
-                          className="w-full bg-slate-900 text-white outline-none py-0.5 border-b border-indigo-500 text-xs font-bold"
+                          className="w-full bg-white text-slate-800 border-b border-[#2563EB] outline-none py-0.5 text-xs font-bold"
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
                         <div className="truncate flex items-center gap-1.5">
-                          <span className="shrink-0 text-slate-500">💬</span>
-                          <span>{c.title}</span>
+                          <span className="shrink-0 text-slate-400">💬</span>
+                          <span className="truncate">{c.title}</span>
                         </div>
                       )}
-                      <div className="text-[9px] text-slate-500 font-medium mt-1 uppercase tracking-wider">
-                        {c.subject} · {c.messages.length} notes
+                      <div className="text-[9px] text-slate-400 font-semibold mt-0.5 uppercase tracking-wider font-mono">
+                        {c.subject} · {c.messages.length} log
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-20 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleTogglePin(c.id);
                         }}
                         title="Pin Chat"
-                        className="p-1 text-slate-400 hover:text-sky-400 rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-[#2563EB] rounded transition-all shadow-sm border border-slate-100"
                       >
                         <Pin className="w-3 h-3" />
                       </button>
@@ -1836,7 +1909,7 @@ export default function AICoach({
                           handleDeleteChat(c.id);
                         }}
                         title="Delete Chat"
-                        className="p-1 text-slate-400 hover:text-rose-400 rounded transition-all"
+                        className="p-1 hover:bg-white text-slate-400 hover:text-rose-500 rounded transition-all shadow-sm border border-slate-100"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -1847,6 +1920,7 @@ export default function AICoach({
             </div>
           )}
 
+
           {filteredConversations.length === 0 && (
             <div className="text-center py-6 text-slate-500 text-xs">
               😭 No conversations found
@@ -1855,16 +1929,16 @@ export default function AICoach({
         </div>
 
         {/* ================= QUICK ACCESS SEGMENTS ================= */}
-        <div className="border-t border-white/5 pt-4 mt-4 space-y-4 shrink-0">
+        <div className="border-t border-slate-100 pt-3 mt-4 space-y-3 shrink-0">
           {/* 1. Revision / Register Subjects Index */}
           <div>
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-1 block mb-1.5">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1 block mb-1">
               Subject Focus Hub
             </span>
             <div className="max-h-24 overflow-y-auto space-y-1 scrollbar-none">
               <button
                 onClick={() => handleCreateNewChat("General Study Tips")}
-                className="w-full text-left p-1.5 hover:bg-white/5 rounded-lg text-[11px] text-indigo-300 font-bold truncate flex items-center gap-1.5"
+                className="w-full text-left p-1.5 hover:bg-[#2563EB]/5 rounded-lg text-[11px] text-[#2563EB] font-bold truncate flex items-center gap-1.5 border border-[#2563EB]/10 bg-white"
               >
                 🎓 General Study Tips
               </button>
@@ -1875,7 +1949,7 @@ export default function AICoach({
                 <button
                   key={subjName}
                   onClick={() => handleCreateNewChat(subjName)}
-                  className="w-full text-left p-1.5 hover:bg-white/5 rounded-lg text-[11px] text-slate-400 hover:text-white font-semibold truncate flex items-center gap-1.5"
+                  className="w-full text-left p-1.5 hover:bg-[#2563EB]/5 rounded-lg text-[11px] text-slate-600 hover:text-[#2563EB] font-semibold truncate flex items-center gap-1.5 border border-slate-100 bg-white"
                 >
                   📖 {subjName}
                 </button>
@@ -1885,7 +1959,7 @@ export default function AICoach({
 
           {/* 2. Active Strategy Plans */}
           <div>
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 pl-1 block mb-1.5">
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1 block mb-1">
               Current Micro Strategies
             </span>
             <div className="max-h-20 overflow-y-auto space-y-1 scrollbar-none">
@@ -1902,13 +1976,13 @@ export default function AICoach({
                         );
                       }, 200);
                     }}
-                    className="w-full text-left p-1.5 hover:bg-white/5 rounded-lg text-[10px] text-indigo-200/80 font-bold truncate flex items-center gap-1 border border-white/5 bg-white/[0.01]"
+                    className="w-full text-left p-1.5 hover:bg-[#2563EB]/5 rounded-lg text-[10px] text-slate-700 hover:text-slate-900 font-bold truncate flex items-center gap-1 border border-slate-150 bg-white"
                   >
                     🎯 {p.subject} ({p.progress || 0}% plan progress)
                   </button>
                 ))
               ) : (
-                <span className="text-[10px] text-slate-600 pl-1 block">No blueprints active.</span>
+                <span className="text-[10px] text-slate-400 pl-1 block font-medium">No blueprints active.</span>
               )}
             </div>
           </div>
@@ -1919,16 +1993,16 @@ export default function AICoach({
       {/* ========================================================= */}
       {/* ================= CONVERSATION PANEL (MAIN) ============= */}
       {/* ========================================================= */}
-      <section className="flex-1 flex flex-col bg-[#0b0c10] overflow-hidden">
+      <section className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
         
         {/* ================= CONVERSATION HEADER ================= */}
-        <header className="px-4 md:px-6 py-3 border-b border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0 bg-[#08080c] z-30">
+        <header className="px-4 md:px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0 bg-white shadow-sm z-30">
           
           {/* Active Title & Info */}
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-indigo-400 shrink-0 hidden sm:block" />
+          <div className="flex-1 min-w-0 flex items-center gap-2.5">
+            <GraduationCap className="w-5 h-5 text-[#2563EB] shrink-0 hidden sm:block animate-pulse" />
             <div className="truncate">
-              <h2 className="text-sm font-black text-white tracking-tight flex items-center gap-1.5 truncate">
+              <h2 className="text-sm font-black text-slate-800 tracking-tight flex items-center gap-1.5 truncate">
                 {editingSessionId === activeSession.id ? (
                   <input
                     type="text"
@@ -1937,22 +2011,22 @@ export default function AICoach({
                     onKeyDown={(e) => e.key === "Enter" && finishRenameSession(activeSession.id)}
                     onBlur={() => finishRenameSession(activeSession.id)}
                     autoFocus
-                    className="bg-slate-900 border border-indigo-500 rounded px-2 py-0.5 text-xs text-white max-w-sm"
+                    className="bg-white border border-[#2563EB]/40 rounded-xl px-2 py-1 text-xs text-slate-800 max-w-sm shadow-sm outline-none font-bold"
                   />
                 ) : (
                   <span>{activeSession.title}</span>
                 )}
                 {activeSession.isPinned && (
-                  <Pin className="w-3 h-3 text-sky-400 fill-sky-400 shrink-0" />
+                  <Pin className="w-3 h-3 text-[#2563EB] fill-[#2563EB] shrink-0" />
                 )}
               </h2>
-              <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mt-1 flex items-center gap-1">
+              <p className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase mt-1 flex items-center gap-1.5 flex-wrap">
                 <span>Active subject: </span>
-                <span className="text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full font-black text-[9px]">
+                <span className="text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full font-black text-[9px]">
                   {activeSession.subject}
                 </span>
                 <span>Mode: </span>
-                <span className="text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full font-black text-[9px]">
+                <span className="text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full font-black text-[9px]">
                   {activeSession.chatMode}
                 </span>
               </p>
@@ -1972,9 +2046,9 @@ export default function AICoach({
                   setCustomSubjectText("");
                 }
               }}
-              className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-[11px] text-[#f1f5f9] outline-none focus:border-indigo-500/50 transition-all font-black"
+              className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px] text-slate-700 outline-none focus:border-[#2563EB]/40 transition-all font-black"
             >
-              <option value="General Study" className="bg-slate-950 text-slate-300">🎓 General Study & Habits</option>
+              <option value="General Study" className="bg-white text-slate-800">🎓 General Study & Habits</option>
               {Array.from(new Set([
                 ...subjects.map(s => s.title),
                 ...subjectsList.map(s => s.name)
@@ -1982,12 +2056,12 @@ export default function AICoach({
                 const sObj = subjects.find(s => s.title === subjName);
                 const level = sObj?.level || "Medium";
                 return (
-                  <option key={subjName} value={subjName} className="bg-slate-950 text-[#f1f5f9]">
+                  <option key={subjName} value={subjName} className="bg-white text-slate-800">
                     🎓 {subjName}
                   </option>
                 );
               })}
-              <option value="Custom Focus" className="bg-slate-950 text-indigo-300 font-extrabold">✍️ Custom Topic focus...</option>
+              <option value="Custom Focus" className="bg-white text-[#2563EB] font-extrabold">✍️ Custom Topic focus...</option>
             </select>
 
             {activeSession.subject === "Custom Focus" && (
@@ -1995,7 +2069,7 @@ export default function AICoach({
                 type="text"
                 value={activeSession.customSubjectText || customSubjectText}
                 placeholder="Topic text..."
-                className="w-28 bg-white/5 border border-white/10 rounded-xl px-2.5 py-1 text-[11px] text-white outline-none focus:border-indigo-500/50 animate-fadeIn"
+                className="w-28 bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-[11px] text-slate-800 outline-none focus:border-[#2563EB]/40 animate-fadeIn font-bold shadow-sm"
                 onChange={(e) => {
                   const val = e.target.value;
                   setCustomSubjectText(val);
@@ -2008,22 +2082,22 @@ export default function AICoach({
             <select
               value={activeSession.chatMode}
               onChange={(e) => updateSessionMode(e.target.value as any)}
-              className="bg-white/5 border border-white/10 rounded-xl px-2.5 py-1.5 text-[11px] text-[#22c55e] outline-none focus:border-indigo-500/50 transition-all font-black capitalize"
+              className="bg-white border border-[#2563EB]/20 rounded-xl px-2.5 py-1.5 text-[11px] text-[#2563EB] outline-none focus:border-[#2563EB]/40 transition-all font-black capitalize"
             >
-              <option value="detailed" className="bg-slate-950 text-slate-300">📖 Detailed Explainer</option>
-              <option value="quick" className="bg-slate-950 text-slate-300">⚡ Quick Answer</option>
-              <option value="teacher" className="bg-slate-950 text-slate-300">🎓 Analogy/Teacher Mode</option>
-              <option value="quiz" className="bg-slate-950 text-slate-300">📝 Quiz Mode</option>
-              <option value="flashcard" className="bg-slate-950 text-slate-300">🧠 Flashcard Matcher</option>
-              <option value="exam" className="bg-slate-950 text-slate-300">🎯 Exam Prep Mode</option>
-              <option value="motivation" className="bg-slate-950 text-slate-300">🔥 Motivational Drive</option>
+              <option value="detailed" className="bg-white text-slate-800">📖 Detailed Explainer</option>
+              <option value="quick" className="bg-white text-slate-800">⚡ Quick Answer</option>
+              <option value="teacher" className="bg-white text-slate-800">🎓 Analogy / Teacher</option>
+              <option value="quiz" className="bg-white text-slate-800">📝 Quiz Mode</option>
+              <option value="flashcard" className="bg-white text-slate-800">🧠 Flashcards Matcher</option>
+              <option value="exam" className="bg-white text-slate-800">🎯 Exam Prep Mode</option>
+              <option value="motivation" className="bg-white text-slate-800">🔥 Motivation Booster</option>
             </select>
 
             {/* THREE DOTS DROPDOWN CONTAINER */}
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setActiveMenuId(activeMenuId === activeSession.id ? null : activeSession.id)}
-                className="p-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl text-slate-300 cursor-pointer transition-all"
+                className="p-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 cursor-pointer transition-all shadow-sm"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -2035,86 +2109,86 @@ export default function AICoach({
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-56 bg-[#0f0f15] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 text-[11px] text-slate-300 space-y-1"
+                    className="absolute right-0 mt-2 w-56 bg-white border border-slate-100 rounded-2xl p-2 shadow-xl z-50 text-[11px] text-slate-600 space-y-1"
                   >
                     <button
                       onClick={() => handleCreateNewChat()}
-                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-indigo-400"
+                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-[#2563EB]"
                     >
                       <Plus className="w-3.5 h-3.5" /> Start New Study Chat
                     </button>
                     <button
                       onClick={() => startRenameSession(activeSession.id, activeSession.title)}
-                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2"
+                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
                     >
                       <Edit className="w-3.5 h-3.5 text-slate-400" /> Rename Conversation
                     </button>
                     <button
                       onClick={() => handleTogglePin(activeSession.id)}
-                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2"
+                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
                     >
-                      <Pin className="w-3.5 h-3.5 text-[#93c5fd]" /> {activeSession.isPinned ? "Unpin Study Chat" : "Pin Study Chat"}
+                      <Pin className="w-3.5 h-3.5 text-slate-400" /> {activeSession.isPinned ? "Unpin Study Chat" : "Pin Study Chat"}
                     </button>
                     <button
                       onClick={() => handleShareClipboard()}
-                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2"
+                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
                     >
-                      <Share2 className="w-3.5 h-3.5 text-emerald-400" /> Share Invitation
+                      <Share2 className="w-3.5 h-3.5 text-emerald-600" /> Share Invitation
                     </button>
-                    <div className="border-t border-white/5 my-1" />
+                    <div className="border-t border-slate-100 my-1" />
                     
                     {/* Export Actions */}
                     <button
                       onClick={() => handleExportChat(activeSession.id, "markdown")}
-                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-slate-200"
+                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
                     >
-                      <Download className="w-3.5 h-3.5 text-indigo-400" /> Export Chat (.md)
+                      <Download className="w-3.5 h-3.5 text-[#2563EB]" /> Export Chat (.md)
                     </button>
                     <button
                       onClick={() => handleExportChat(activeSession.id, "json")}
-                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-slate-200"
+                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-slate-700"
                     >
-                      <Download className="w-3.5 h-3.5 text-purple-400" /> Export Chat (.json)
+                      <Download className="w-3.5 h-3.5 text-purple-600" /> Export Chat (.json)
                     </button>
                     
                     <button
                       onClick={() => handleClearConversation(activeSession.id)}
-                      className="w-full text-left p-2 hover:bg-white/5 rounded-lg font-bold flex items-center gap-2 text-amber-400"
+                      className="w-full text-left p-2 hover:bg-slate-50 rounded-lg font-bold flex items-center gap-2 text-amber-600"
                     >
                       <RotateCcw className="w-3.5 h-3.5" /> Clear Discussion
                     </button>
                     
-                    <div className="border-t border-white/5 my-1" />
-                    <span className="text-[9px] text-slate-500 font-extrabold uppercase px-2 block py-0.5">Prompt Accelerations</span>
+                    <div className="border-t border-slate-100 my-1" />
+                    <span className="text-[9px] text-slate-450 font-extrabold uppercase px-2 block py-0.5">Prompt Accelerations</span>
                     <button
                       onClick={() => handleActionOnTopMsg("summary")}
-                      className="w-full text-left p-2 hover:bg-indigo-500/10 text-indigo-300 rounded-lg font-black flex items-center gap-2"
+                      className="w-full text-left p-2 hover:bg-indigo-50 text-indigo-700 rounded-lg font-black flex items-center gap-2"
                     >
                       📚 Generate Summary Of Chat
                     </button>
                     <button
                       onClick={() => handleActionOnTopMsg("quiz")}
-                      className="w-full text-left p-2 hover:bg-blue-500/10 text-blue-300 rounded-lg font-black flex items-center gap-2"
+                      className="w-full text-left p-2 hover:bg-blue-50 text-blue-700 rounded-lg font-black flex items-center gap-2"
                     >
                       📝 Generate Quiz From Session
                     </button>
                     <button
                       onClick={() => handleActionOnTopMsg("flashcards")}
-                      className="w-full text-left p-2 hover:bg-emerald-500/10 text-emerald-300 rounded-lg font-black flex items-center gap-2"
+                      className="w-full text-left p-2 hover:bg-emerald-50 text-emerald-700 rounded-lg font-black flex items-center gap-2"
                     >
                       🧠 Create Flashcards From Session
                     </button>
                     <button
                       onClick={() => handleActionOnTopMsg("notes")}
-                      className="w-full text-left p-2 hover:bg-pink-500/10 text-pink-300 rounded-lg font-black flex items-center gap-2"
+                      className="w-full text-left p-2 hover:bg-pink-50 text-pink-700 rounded-lg font-black flex items-center gap-2"
                     >
                       📄 Convert Chat into Student Notes
                     </button>
 
-                    <div className="border-t border-white/5 my-1" />
+                    <div className="border-t border-slate-100 my-1" />
                     <button
                       onClick={() => handleDeleteChat(activeSession.id)}
-                      className="w-full text-left p-2 hover:bg-red-500/10 rounded-lg font-bold flex items-center gap-2 text-rose-400"
+                      className="w-full text-left p-2 hover:bg-rose-50 rounded-lg font-bold flex items-center gap-2 text-rose-600"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete Study Chat
                     </button>
@@ -2132,17 +2206,17 @@ export default function AICoach({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`flex-1 overflow-y-auto space-y-6 scroll-smooth bg-gradient-to-b from-[#0b0c10] to-[#06070a] relative selection:bg-indigo-500/30 selection:text-white ${
-            isDraggingOver ? "outline-2 outline-dashed outline-indigo-500/50 bg-[#0c0d15]" : ""
+          className={`flex-1 overflow-y-auto space-y-6 scroll-smooth bg-slate-50 relative selection:bg-[#2563EB]/10 selection:text-[#2563EB] ${
+            isDraggingOver ? "outline-2 outline-dashed outline-[#2563EB]/50 bg-blue-50/50" : ""
           }`}
         >
           {isDraggingOver && (
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm border border-indigo-500/30 rounded-2xl flex flex-col items-center justify-center pointer-events-none z-50 animate-fadeIn">
-              <div className="p-4 rounded-full bg-indigo-600/20 mb-3 border border-indigo-500/30">
-                <Image className="w-8 h-8 text-indigo-400 animate-bounce" />
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm border border-[#2563EB]/25 rounded-2xl flex flex-col items-center justify-center pointer-events-none z-50 animate-fadeIn">
+              <div className="p-4 rounded-full bg-[#2563EB]/10 mb-3 border border-[#2563EB]/20">
+                <Image className="w-8 h-8 text-[#2563EB] animate-bounce" />
               </div>
-              <p className="text-sm font-black text-white uppercase tracking-wider pl-1 font-display">Drop file to attach!</p>
-              <p className="text-[11px] text-slate-400 mt-1 font-mono">StudyForge AI supports JPG, PNG, and WEBP notes & screenshots</p>
+              <p className="text-sm font-black text-slate-800 uppercase tracking-wider pl-1 font-display">Drop file to attach!</p>
+              <p className="text-[11px] text-slate-500 mt-1 font-mono">StudyForge AI supports JPG, PNG, and WEBP notes & screenshots</p>
             </div>
           )}
 
@@ -2150,10 +2224,10 @@ export default function AICoach({
           <div className="max-w-4xl w-full mx-auto px-3 sm:px-4 py-4 space-y-6 flex flex-col">
             
             {activeSession.messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500 max-w-lg mx-auto py-16">
-                <Sparkles className="w-12 h-12 text-[#6366f1]/20 mb-4 animate-pulse" />
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1 font-display">Your study dialogue is blank</p>
-                <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-sm mt-3 leading-6">
+              <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400 max-w-lg mx-auto py-16">
+                <Sparkles className="w-10 h-10 text-[#2563EB]/30 mb-4 animate-pulse" />
+                <p className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1 font-display">Your study dialogue is blank</p>
+                <p className="text-[11px] text-slate-400 font-medium leading-relaxed max-w-sm mt-3 leading-6">
                   Ask doubts, formulate physics solvers, analyze notes, or pick one of the core academic tutoring prompt assistants below to jump in!
                 </p>
               </div>
@@ -2170,11 +2244,11 @@ export default function AICoach({
                   >
                     <div className="max-w-[90%] sm:max-w-[80%] flex flex-col gap-1.5 items-end">
                       {/* User Message Bubble */}
-                      <div className="bg-[#181a26]/95 border border-indigo-500/20 text-slate-100 rounded-2xl rounded-tr-none px-4.5 py-3 shadow-xl text-sm sm:text-base leading-relaxed">
+                      <div className="bg-[#2563EB] border border-[#2563EB]/10 text-white rounded-2xl rounded-tr-none px-4.5 py-3 shadow-md text-sm sm:text-base leading-relaxed">
                         
                         {/* Render attached upload Image if present */}
                         {m.imageUrl && (
-                          <div className="mb-2.5 relative overflow-hidden rounded-xl border border-white/10 max-h-64 bg-black/40 flex justify-center items-center shadow-inner">
+                          <div className="mb-2.5 relative overflow-hidden rounded-xl border border-white/10 max-h-64 bg-slate-150 flex justify-center items-center shadow-inner">
                             <img 
                               src={m.imageUrl} 
                               alt="Uploaded material" 
@@ -2186,24 +2260,24 @@ export default function AICoach({
 
                         {/* Render attached PDF chip badge inside user bubble */}
                         {pdfName && (
-                          <div className="mb-2.5 flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-xl text-xs text-indigo-300 font-bold shrink-0 font-mono">
+                          <div className="mb-2.5 flex items-center gap-2 bg-white/15 border border-white/20 px-3 py-1.5 rounded-xl text-xs text-white font-bold shrink-0 font-mono">
                             <FileText className="w-3.5 h-3.5" />
                             <span className="truncate">📎 Connected Study Source: {pdfName}</span>
                           </div>
                         )}
 
-                        <p className="whitespace-pre-wrap select-text selection:bg-indigo-500/35 font-medium">{cleanText}</p>
+                        <p className="whitespace-pre-wrap select-text selection:bg-white/25 font-medium">{cleanText}</p>
                       </div>
 
                       {/* Timestamp & Copy bar row */}
-                      <div className="flex gap-3 items-center text-[9px] uppercase font-mono text-zinc-500 px-1 select-none">
+                      <div className="flex gap-3 items-center text-[9px] uppercase font-mono text-slate-400 px-1 select-none">
                         <span>{getUpdateFormattedDate(m.timestamp)}</span>
                         <button
                           onClick={() => handleCopyMessageText(cleanText, i)}
-                          className="hover:text-white transition-all cursor-pointer flex items-center gap-1 font-extrabold"
+                          className="hover:text-slate-700 transition-all cursor-pointer flex items-center gap-1 font-extrabold"
                           title="Copy text of user message"
                         >
-                          {copiedMessageIdx === i ? <span className="text-emerald-400">Copied!</span> : <span>Copy</span>}
+                          {copiedMessageIdx === i ? <span className="text-emerald-500">Copied!</span> : <span>Copy</span>}
                         </button>
                       </div>
                     </div>
@@ -2215,29 +2289,31 @@ export default function AICoach({
               return (
                 <div
                   key={i}
-                  className="w-full flex gap-3 sm:gap-4 items-start bg-[#12131a]/40 border border-white/[0.03] p-4 sm:p-5 rounded-2xl animate-fadeIn mr-auto"
+                  className="w-full flex gap-3 sm:gap-4 items-start bg-white border border-slate-100 p-4 sm:p-5 rounded-2xl animate-fadeIn mr-auto shadow-sm"
                 >
-                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 shrink-0 text-xs font-black font-display shadow-md shadow-purple-500/5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#2563EB] shrink-0 text-xs font-black font-display shadow-sm">
                     SF
                   </div>
 
                   <div className="flex-1 min-w-0 select-text">
-                    {renderRichMarkdown(m.content)}
+                    <div className="text-slate-800 text-sm sm:text-base leading-relaxed">
+                      {renderRichMarkdown(m.content)}
+                    </div>
                     
                     {/* Micro actions panels */}
-                    <div className="mt-4 flex items-center flex-wrap gap-4 border-t border-white/5 pt-3.5 text-[10px] uppercase font-black tracking-widest text-slate-500 select-none">
-                      <span className="font-mono">{getUpdateFormattedDate(m.timestamp)}</span>
+                    <div className="mt-4 flex items-center flex-wrap gap-4 border-t border-slate-100 pt-3.5 text-[10px] uppercase font-black tracking-widest text-[#2563EB] select-none">
+                      <span className="font-mono text-slate-400">{getUpdateFormattedDate(m.timestamp)}</span>
                       
                       {/* Copy response */}
                       <button
                         onClick={() => handleCopyMessageText(m.content, i)}
-                        className="hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                        className="hover:text-slate-800 text-slate-400 font-extrabold flex items-center gap-1.5 transition-all cursor-pointer"
                         title="Copy Response Text"
                       >
                         {copiedMessageIdx === i ? (
                           <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-emerald-400 font-extrabold">Copied Response!</span>
+                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                            <span className="text-emerald-500 font-extrabold">Copied Response!</span>
                           </>
                         ) : (
                           <>
@@ -2250,8 +2326,8 @@ export default function AICoach({
                       {/* Voice Speak synthesis */}
                       <button
                         onClick={() => handleSpeakTextAlert(m.content, i)}
-                        className={`hover:text-white flex items-center gap-1.5 transition-all cursor-pointer ${
-                          activeVoiceMessageIdx === i ? "text-indigo-400" : ""
+                        className={`hover:text-slate-800 text-slate-400 font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          activeVoiceMessageIdx === i ? "text-[#2563EB] font-bold" : ""
                         }`}
                         title="Dictate response speak"
                       >
@@ -2267,23 +2343,22 @@ export default function AICoach({
           {/* AI Generation State Container with detailed loader log lines */}
           {isChatLoading && (
             <div className="flex items-start gap-4 animate-pulse">
-              <div className="w-9 h-9 rounded-xl bg-purple-900/40 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0 text-xs font-black">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 text-[#2563EB] flex items-center justify-center shrink-0 text-xs font-black">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
               </div>
-              <div className="bg-[#0c0d16]/90 border border-purple-500/10 rounded-2xl p-5 rounded-tl-none font-bold text-xs max-w-md">
-                <div className="flex items-center gap-2 text-purple-300">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-spin" />
-                  <span>StudyForge AI Coach is thinking...</span>
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm max-w-md">
+                <div className="flex items-center gap-2 text-[#2563EB]">
+                  <Sparkles className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+                  <span className="font-bold">StudyForge AI Coach is thinking...</span>
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium select-none">
+                <p className="text-[10px] text-slate-400 mt-1 font-medium select-none">
                   Processing academic schema weights, context metadata, and tutoring mode heuristics...
                 </p>
-                
                 {/* Pulsing Dots typing animation */}
                 <div className="flex items-center gap-1.5 mt-3 pl-1">
-                  <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce duration-300" style={{ animationDelay: "0ms" }}></span>
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce duration-300" style={{ animationDelay: "150ms" }}></span>
-                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce duration-300" style={{ animationDelay: "300ms" }}></span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce duration-300" style={{ animationDelay: "0ms" }}></span>
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce duration-300" style={{ animationDelay: "150ms" }}></span>
+                  <span className="w-2 h-2 rounded-full bg-blue-300 animate-bounce duration-300" style={{ animationDelay: "300ms" }}></span>
                 </div>
               </div>
             </div>
@@ -2291,8 +2366,8 @@ export default function AICoach({
 
           {/* Interactive Bento guide if chat is just starting for onboarding academic features */}
           {activeSession.messages.length <= 1 && !isChatLoading && (
-            <div className="pt-6 border-t border-white/5 space-y-4">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 block">
+            <div className="pt-6 border-t border-slate-100 space-y-4">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#2563EB] pl-1 block">
                 🧠 Forge Scholastic Excellence (AI Presets)
               </span>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2306,16 +2381,16 @@ export default function AICoach({
                       const constructedPrompt = `[${feat.title} request for ${subjectTitle}] - ${feat.prompt}`;
                       handleSendCoachMessage(undefined, constructedPrompt);
                     }}
-                    className="p-4 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 hover:border-indigo-500/20 rounded-2xl text-left transition-all group flex items-start gap-3.5 cursor-pointer disabled:opacity-40 select-none hover:shadow-lg"
+                    className="p-4 bg-white hover:bg-slate-50/70 border border-slate-100 hover:border-[#2563EB]/20 rounded-2xl text-left transition-all group flex items-start gap-3.5 cursor-pointer disabled:opacity-40 select-none shadow-sm hover:shadow-md"
                   >
-                    <div className="p-2.5 bg-slate-900 border border-white/5 group-hover:border-indigo-500/20 rounded-xl transition-all shadow-inner">
+                    <div className="p-2.5 bg-slate-50 border border-slate-100 group-hover:border-[#2563EB]/25 rounded-xl transition-all shadow-inner">
                       {feat.icon}
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-slate-200 group-hover:text-indigo-400 transition-all uppercase tracking-wide">
+                      <h4 className="text-xs font-black text-slate-700 group-hover:text-[#2563EB] transition-all uppercase tracking-wide">
                         {feat.title}
                       </h4>
-                      <p className="text-[10px] text-slate-500 mt-1 font-semibold leading-relaxed">
+                      <p className="text-[10px] text-slate-400 mt-1 font-semibold leading-relaxed">
                         {feat.desc}
                       </p>
                     </div>
@@ -2331,14 +2406,14 @@ export default function AICoach({
 
         {/* ================= CHAT ERROR STATUS WITH RETRY OPTIONS ============== */}
         {chatError && (
-          <div className="px-6 py-3.5 bg-red-950/20 border-y border-red-500/20 text-red-200 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
+          <div className="px-6 py-3.5 bg-rose-50 border-y border-rose-100 text-rose-700 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 animate-fadeIn">
             <span className="flex items-center gap-2">
-              <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" />
+              <AlertOctagon className="w-4 h-4 text-rose-500 shrink-0" />
               <span>{chatError}</span>
             </span>
             <button
               onClick={handleRetryLastMessage}
-              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-black flex items-center gap-1 text-[10px] uppercase tracking-wider cursor-pointer"
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-black flex items-center gap-1 text-[10px] uppercase tracking-wider cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" /> Retry Last Message
             </button>
@@ -2346,7 +2421,7 @@ export default function AICoach({
         )}
 
         {/* ================= CONVERSATION UTILITIES & QUICK ACTION BUTTONS HUB ================= */}
-        <footer className="p-6 bg-[#08080c] border-t border-white/5 shrink-0 z-10 space-y-4">
+        <footer className="p-6 bg-white border-t border-slate-100 shrink-0 z-10 space-y-4">
           
           {/* Image Upload Preview Bar */}
           <AnimatePresence>
@@ -2355,15 +2430,15 @@ export default function AICoach({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="p-3 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-2xl"
+                className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 animate-fadeIn shadow-sm"
               >
                 <div className="flex items-center gap-3 overflow-hidden">
-                  <div className="w-12 h-12 rounded-xl bg-black/40 border border-white/5 overflow-hidden flex items-center justify-center shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
                     <img src={uploadedImageBase64} alt="Upload thumb" className="w-full h-full object-cover" />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-xs font-black text-slate-200 truncate">{uploadedImageName || "Attached Image"}</p>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ready to analyze with AI Coach</p>
+                    <p className="text-xs font-black text-slate-700 truncate">{uploadedImageName || "Attached Image"}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ready to analyze with AI Coach</p>
                   </div>
                 </div>
                 <button
@@ -2372,7 +2447,7 @@ export default function AICoach({
                     setUploadedImageBase64(null);
                     setUploadedImageName("");
                   }}
-                  className="p-1 px-2.5 bg-white/5 hover:bg-rose-500/20 border border-white/5 hover:border-rose-500/25 rounded-xl text-[10px] uppercase font-black tracking-widest text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                  className="p-1 px-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl text-[10px] uppercase font-black tracking-widest text-rose-600 transition-all cursor-pointer"
                 >
                   Discard
                 </button>
@@ -2408,7 +2483,7 @@ export default function AICoach({
                       onClick={() => {
                         handleSendCoachMessage(undefined, act.prompt);
                       }}
-                      className="px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-indigo-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-md shadow-indigo-505/5"
+                      className="px-3 py-2 bg-blue-50/80 hover:bg-blue-100 border border-blue-200 text-[#2563EB] hover:text-[#2563EB]/90 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-sm"
                     >
                       <span>{act.icon}</span>
                       <span>{act.label}</span>
@@ -2420,7 +2495,7 @@ export default function AICoach({
           </AnimatePresence>
 
           {/* Quick tutor small helpers row (scrollbar inline horizontal slider) */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none select-none">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none select-none overflow-y-hidden">
             {[
               { label: "Explain Chapter", icon: "📚", text: "Walk me through the active parameters to explain this chapter with pristine logical clarity." },
               { label: "Quiz Recalls", icon: "📝", text: "Provide a quick diagnostic recall quiz based on this subject's core concepts." },
@@ -2438,7 +2513,7 @@ export default function AICoach({
                   const formatted = `[${btn.label} helper for ${subLabel}] - ${btn.text}`;
                   handleSendCoachMessage(undefined, formatted);
                 }}
-                className="px-3.5 py-2 bg-white/[0.01] hover:bg-white/5 border border-white/5 hover:border-indigo-500/20 hover:text-white rounded-xl text-[11px] text-slate-300 font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-md"
+                className="px-3.5 py-2 bg-slate-50 hover:bg-[#2563EB]/5 border border-slate-200 hover:border-[#2563EB]/35 rounded-xl text-[11px] text-slate-600 font-bold hover:text-[#2563EB] transition-all shrink-0 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 select-none shadow-sm"
               >
                 <span>{btn.icon}</span>
                 <span>{btn.label}</span>
@@ -2453,14 +2528,14 @@ export default function AICoach({
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
-                className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 px-3.5 py-1.5 rounded-xl text-xs text-indigo-300 font-bold select-none"
+                className="inline-flex items-center gap-2 bg-[#2563EB]/10 border border-[#2563EB]/25 px-3.5 py-1.5 rounded-xl text-xs text-[#2563EB] font-bold select-none"
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span className="truncate">📎 Connected Study PDF: {attachedPdf.name}</span>
+                <FileText className="w-3.5 h-3.5 text-[#2563EB]" />
+                <span className="truncate">Connected Study PDF: {attachedPdf.name}</span>
                 <button
                   type="button"
                   onClick={() => setAttachedPdfId(null)}
-                  className="ml-2 hover:text-white text-slate-500 font-extrabold cursor-pointer text-xs"
+                  className="ml-2 hover:text-[#2563EB] text-slate-400 font-extrabold cursor-pointer text-xs"
                 >
                   ✕
                 </button>
@@ -2470,10 +2545,10 @@ export default function AICoach({
 
           {/* Render PDF file picker dropdown list if open */}
           {showPdfPicker && (
-            <div className="p-4 bg-[#0d0e14]/95 border border-white/5 rounded-2xl space-y-2 mt-2 max-h-48 overflow-y-auto shadow-2xl animate-fadeIn relative z-25">
-              <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase tracking-widest font-black select-none">
+            <div className="p-4 bg-white border border-slate-200 rounded-2xl space-y-2 mt-2 max-h-48 overflow-y-auto shadow-xl animate-fadeIn relative z-25">
+              <div className="flex justify-between items-center text-[9px] text-slate-400 uppercase tracking-widest font-black select-none">
                 <span>Select active recall document source</span>
-                <button onClick={() => setShowPdfPicker(false)} className="hover:text-white cursor-pointer hover:underline text-[9px]">✕ Close</button>
+                <button onClick={() => setShowPdfPicker(false)} className="hover:text-[#2563EB] cursor-pointer hover:underline text-[9px]">✕ Close</button>
               </div>
               {pdfs && pdfs.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1.5">
@@ -2485,18 +2560,18 @@ export default function AICoach({
                         setAttachedPdfId(pdf.id);
                         setShowPdfPicker(false);
                       }}
-                      className="text-left p-2 rounded-xl border border-white/5 bg-slate-900/40 hover:bg-white/5 transition-all flex items-center gap-2 select-none"
+                      className="text-left p-2.5 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-all flex items-center gap-2 select-none"
                     >
-                      <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-slate-200 truncate">{pdf.name}</p>
-                        <p className="text-[9px] text-slate-500 font-mono mt-0.5">Chapters / total pages: {pdf.totalPages}</p>
+                        <p className="text-xs font-bold text-slate-700 truncate">{pdf.name}</p>
+                        <p className="text-[9px] text-slate-400 font-mono mt-0.5">Chapters / total pages: {pdf.totalPages}</p>
                       </div>
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="text-[11px] text-slate-500 italic p-1">No vault PDFs uploaded. Upload files first inside PDF Vault!</p>
+                <p className="text-[11px] text-slate-400 italic p-1">No vault PDFs uploaded. Upload files first inside PDF Vault!</p>
               )}
             </div>
           )}
@@ -2521,7 +2596,7 @@ export default function AICoach({
                 disabled={isChatLoading}
                 onClick={() => fileInputRef.current?.click()}
                 title="Upload textbook notes page, screenshot, or graph (JPG, PNG, WEBP)"
-                className="p-3 bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-505/30 text-indigo-400 hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50"
+                className="p-3 bg-white hover:bg-blue-50 border border-slate-200 hover:border-[#2563EB]/40 text-[#2563EB] rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50 shadow-sm"
               >
                 <Image className="w-4 h-4" />
               </button>
@@ -2532,7 +2607,9 @@ export default function AICoach({
                 disabled={isChatLoading}
                 onClick={() => setShowPdfPicker(!showPdfPicker)}
                 title="Attach PDF book chapters context from vault"
-                className={`p-3 bg-white/5 hover:bg-indigo-600/20 border ${attachedPdfId ? "border-purple-500 text-purple-400" : "border-white/10 text-slate-400"} hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50`}
+                className={`p-3 bg-white hover:bg-blue-50 border border-slate-200 hover:border-[#2563EB]/40 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50 shadow-sm ${
+                  attachedPdfId ? "border-[#2563EB] text-[#2563EB]" : "text-slate-400"
+                }`}
               >
                 <FileText className="w-4 h-4" />
               </button>
@@ -2543,7 +2620,9 @@ export default function AICoach({
                 disabled={isChatLoading}
                 onClick={handleToggleVoiceInput}
                 title="Speak text via vocal voice dictation"
-                className={`p-3 bg-white/5 hover:bg-red-500/10 border ${isRecording ? "border-red-500 text-red-400 animate-pulse bg-red-500/5" : "border-white/10 text-slate-400"} hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50`}
+                className={`p-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50 shadow-sm ${
+                  isRecording ? "border-rose-500 text-rose-600 animate-pulse bg-rose-50" : "text-slate-400"
+                }`}
               >
                 <Mic className="w-4 h-4" />
               </button>
@@ -2562,14 +2641,14 @@ export default function AICoach({
                     ? `Ask about ${activeSession.customSubjectText || customSubjectText || "your custom topic"}...`
                     : `Ask AI Coach about ${activeSession.subject}...`
                 }
-                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 transition-all font-medium min-w-0"
+                className="flex-1 bg-white border border-slate-200 rounded-2xl px-4 py-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]/45 transition-all font-medium min-w-0 shadow-sm"
               />
 
               {/* Send Button */}
               <button
                 type="submit"
                 disabled={(!coachInput.trim() && !uploadedImageBase64) || isChatLoading}
-                className="px-4sm px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:bg-slate-800 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 rounded-2xl text-white transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-lg disabled:cursor-not-allowed"
+                className="px-5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:from-slate-100 disabled:to-slate-100 disabled:bg-slate-100 disabled:text-slate-400 rounded-2xl text-white transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-md disabled:cursor-not-allowed"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -2583,7 +2662,7 @@ export default function AICoach({
                 }
               }}
               title="Clear conversation"
-              className="p-3 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-slate-400 hover:text-red-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0"
+              className="p-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-400 hover:text-rose-600 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-sm"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
