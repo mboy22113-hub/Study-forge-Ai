@@ -34,7 +34,10 @@ import {
   Zap,
   Flame,
   ArrowRight,
-  Image
+  Image,
+  Mic,
+  FileText,
+  Paperclip
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AcademicSubject, StudyPlan, QuizQuestion, Flashcard } from "../types";
@@ -142,6 +145,75 @@ export default function AICoach({
 
   // Focus and quick custom subject text
   const [customSubjectText, setCustomSubjectText] = useState("");
+
+  // Voice dictation and PDF attachments functionality
+  const [isRecording, setIsRecording] = useState(false);
+  const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
+  const [attachedPdfId, setAttachedPdfId] = useState<string | null>(null);
+  const [showPdfPicker, setShowPdfPicker] = useState(false);
+
+  // Computed attached PDF object
+  const attachedPdf = useMemo(() => {
+    return pdfs.find((p) => p.id === attachedPdfId) || null;
+  }, [pdfs, attachedPdfId]);
+
+  // Speech Recognition dictation toggle handler using standard Web Speech API
+  const handleToggleVoiceInput = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      onTriggerNotification(
+        "Unsupported Browser",
+        "🎙️ Speech recognition is not natively supported in this browser version. Try Chrome or Safari!"
+      );
+      return;
+    }
+
+    if (isRecording) {
+      if (recognitionInstance) {
+        recognitionInstance.stop();
+      }
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+        onTriggerNotification(
+          "Listening Mode Active",
+          "🎙️ Listened audio is being translated to study text... Speak clearly!"
+        );
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech Recognition Error:", event);
+        setIsRecording(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setCoachInput((prev) => (prev ? prev + " " + transcript : transcript));
+        }
+      };
+
+      recognition.start();
+      setRecognitionInstance(recognition);
+    } catch (e) {
+      console.error(e);
+      setIsRecording(false);
+    }
+  };
 
   // AI Vision states & Handlers
   const [uploadedImageBase64, setUploadedImageBase64] = useState<string | null>(null);
@@ -375,7 +447,10 @@ export default function AICoach({
     
     if ((!userMsg && !hasImage) || isChatLoading) return;
 
-    const finalMsg = userMsg || (hasImage ? "Please analyze this uploaded visual material." : "");
+    let finalMsg = userMsg || (hasImage ? "Please analyze this uploaded visual material." : "");
+    if (attachedPdf) {
+      finalMsg += `\n\n[CONTEXT INTEGRATION: The student attached a study PDF file named "${attachedPdf.name}". The document content includes: ${attachedPdf.desc || "curriculum chapters"} metadata with registered pages: ${attachedPdf.totalPages}. Please answer the student question referencing the concepts, questions, formula derivations, and lessons from "${attachedPdf.name}".]`;
+    }
 
     if (!customUserMsg) {
       setCoachInput("");
@@ -812,7 +887,7 @@ export default function AICoach({
     );
   };
 
-  // Custom renderer for robust student-grade markdown with embedded syntax codeblocks
+  // Custom renderer for robust student-grade markdown with embedded syntax codeblocks, tables, and lists
   const renderRichMarkdown = (text: string) => {
     if (!text) return null;
 
@@ -820,102 +895,178 @@ export default function AICoach({
     const blocks = text.split(/(\`\`\`[a-zA-Z0-9]*\n[\s\S]*?\n\`\`\`)/);
 
     return (
-      <div className="space-y-3 text-[13px] text-slate-300 font-medium leading-relaxed">
+      <div className="space-y-4 text-slate-200 text-sm sm:text-base leading-[1.7] select-text font-normal">
         {blocks.map((block, bIdx) => {
-          // Check if code block
           if (block.startsWith("```")) {
             const match = block.match(/^\`\`\`([a-zA-Z0-9]*)\n([\s\S]*?)\n\`\`\`$/);
             const language = match ? match[1] || "code" : "code";
             const codeContent = match ? match[2] : block.replace(/^\`\`\`|\`\`\`$/g, "");
 
             return (
-              <div key={bIdx} className="rounded-xl overflow-hidden border border-white/10 bg-slate-950/80 my-3 font-mono">
+              <div key={bIdx} className="rounded-xl overflow-hidden border border-white/10 bg-slate-950/90 my-4 font-mono shadow-lg">
                 <div className="flex bg-white/[0.04] px-4 py-2 text-xs text-slate-400 items-center justify-between border-b border-white/5 uppercase tracking-wider font-extrabold text-[10px]">
                   <span>💻 {language}</span>
                   <button
                     onClick={() => navigator.clipboard.writeText(codeContent)}
-                    className="flex gap-1 hover:text-white transition-all text-slate-500 font-bold"
+                    className="flex gap-1.5 hover:text-white transition-all text-slate-500 font-bold cursor-pointer"
                   >
-                    <Clipboard className="w-3 h-3" /> Copy
+                    <Clipboard className="w-3.5 h-3.5" /> Copy
                   </button>
                 </div>
-                <pre className="p-4 overflow-x-auto text-xs text-indigo-200 select-text leading-tight">{codeContent}</pre>
+                <pre className="p-4 overflow-x-auto text-[13px] text-indigo-300 select-text leading-relaxed whitespace-pre font-mono scrollbar-thin">{codeContent}</pre>
               </div>
             );
           }
 
-          // Otherwise parse regular lines (lists, bold tags, headers)
+          // Otherwise parse regular lines (lists, tables, headers)
           const lines = block.split("\n");
-          return (
-            <div key={bIdx} className="space-y-2">
-              {lines.map((line, idx) => {
-                const cleaned = line.trim();
-                if (!cleaned) return <div key={idx} className="h-1"></div>;
+          let inTable = false;
+          let tableRows: string[][] = [];
 
-                // Check bullet
-                const isBullet = cleaned.startsWith("*") || cleaned.startsWith("-");
-                const cleanText = cleaned.replace(/^[\*\-]\s*/, "");
+          const parseInlineFormatting = (inputText: string) => {
+            const partsForCode = inputText.split(/(\`[^\`]+\`)/);
+            return partsForCode.map((part, pI) => {
+              if (part.startsWith("`") && part.endsWith("`")) {
+                return (
+                  <code key={pI} className="bg-white/10 border border-white/5 px-1.5 py-0.5 rounded text-indigo-300 font-mono text-xs font-semibold">
+                    {part.slice(1, -1)}
+                  </code>
+                );
+              }
+              const partsForBold = part.split("**");
+              return partsForBold.map((sub, i) =>
+                i % 2 !== 0 ? (
+                  <strong key={i} className="text-white font-extrabold text-[#f1f5f9]">
+                    {sub}
+                  </strong>
+                ) : (
+                  sub
+                )
+              );
+            });
+          };
 
-                // Parse inline backticks first: `text`
-                const partsForCode = cleanText.split(/(\`[^\`]+\`)/);
-                const inlineParsed = partsForCode.map((part, pI) => {
-                  if (part.startsWith("`") && part.endsWith("`")) {
-                    return (
-                      <code key={pI} className="bg-white/10 border border-white/5 px-1.5 py-0.5 rounded text-indigo-300 font-mono text-[11px] font-bold">
-                        {part.slice(1, -1)}
-                      </code>
-                    );
-                  }
-                  
-                  // Parse bold inside normal parts
-                  const partsForBold = part.split("**");
-                  return partsForBold.map((sub, i) =>
-                    i % 2 !== 0 ? (
-                      <strong key={i} className="text-white font-black">
-                        {sub}
-                      </strong>
-                    ) : (
-                      sub
-                    )
-                  );
-                });
+          const elements: React.ReactNode[] = [];
 
-                if (isBullet) {
-                  return (
-                    <div key={idx} className="flex items-start gap-2.5 pl-2.5">
-                      <span className="text-purple-400 mt-2 shrink-0 block w-1.5 h-1.5 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50"></span>
-                      <p className="flex-1 text-slate-300 leading-relaxed">{inlineParsed}</p>
-                    </div>
-                  );
-                } else if (cleaned.startsWith("###")) {
-                  return (
-                    <h4 key={idx} className="text-xs font-black text-purple-400 mt-5 first:mt-0 uppercase tracking-widest border-l-2 border-purple-500/50 pl-2">
-                      {inlineParsed}
-                    </h4>
-                  );
-                } else if (cleaned.startsWith("##")) {
-                  return (
-                    <h3 key={idx} className="text-sm font-black text-slate-100 mt-6 first:mt-0 tracking-wide border-b border-white/5 pb-1">
-                      {inlineParsed}
-                    </h3>
-                  );
-                } else if (cleaned.startsWith("#")) {
-                  return (
-                    <h2 key={idx} className="text-base font-black text-white mt-6 first:mt-0 tracking-tight">
-                      {inlineParsed}
-                    </h2>
-                  );
-                } else {
-                  return (
-                    <p key={idx} className="leading-relaxed text-slate-300 pl-1">
-                      {inlineParsed}
-                    </p>
-                  );
-                }
-              })}
-            </div>
-          );
+          for (let idx = 0; idx < lines.length; idx++) {
+            const line = lines[idx];
+            const trimmed = line.trim();
+
+            if (!trimmed) {
+              if (inTable) {
+                elements.push(renderTableHelper(tableRows, elements.length));
+                inTable = false;
+                tableRows = [];
+              }
+              elements.push(<div key={`blank-${idx}`} className="h-2"></div>);
+              continue;
+            }
+
+            // Check if table row: Starts and ends with |
+            if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+              inTable = true;
+              const cells = trimmed.split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
+              // Filter out markdown spacer rows like |---|---|
+              const isSpacer = cells.every(c => c.startsWith("-") || c.startsWith(":-") || c.endsWith("-"));
+              if (!isSpacer) {
+                tableRows.push(cells);
+              }
+              continue;
+            } else if (inTable) {
+              elements.push(renderTableHelper(tableRows, elements.length));
+              inTable = false;
+              tableRows = [];
+            }
+
+            // Check for list triggers
+            const isBullet = trimmed.startsWith("* ") || trimmed.startsWith("- ") || trimmed.startsWith("• ");
+            const isNumbered = /^\d+\.\s+/.test(trimmed);
+
+            if (isBullet) {
+              const cleanText = trimmed.replace(/^(\*\s*|-\s*|•\s*)/, "");
+              elements.push(
+                <div key={idx} className="flex items-start gap-2.5 pl-4 sm:pl-6 my-2">
+                  <span className="text-purple-400 mt-2 shrink-0 block w-1.5 h-1.5 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50"></span>
+                  <p className="flex-1 text-slate-300 leading-[1.7]">{parseInlineFormatting(cleanText)}</p>
+                </div>
+              );
+            } else if (isNumbered) {
+              const match = trimmed.match(/^(\d+)\.\s+(.*)/);
+              const num = match ? match[1] : "1";
+              const cleanText = match ? match[2] : trimmed;
+              elements.push(
+                <div key={idx} className="flex items-start gap-2.5 pl-4 sm:pl-6 my-2">
+                  <span className="text-indigo-400 font-mono text-[13px] font-black shrink-0 w-5 text-right mt-0.5">{num}.</span>
+                  <p className="flex-1 text-slate-300 leading-[1.7]">{parseInlineFormatting(cleanText)}</p>
+                </div>
+              );
+            } else if (trimmed.startsWith("###")) {
+              const cleanText = trimmed.replace(/^###\s*/, "");
+              elements.push(
+                <h4 key={idx} className="text-sm font-black text-purple-400 mt-6 mb-2 first:mt-0 uppercase tracking-widest border-l-2 border-purple-500/50 pl-2">
+                  {parseInlineFormatting(cleanText)}
+                </h4>
+              );
+            } else if (trimmed.startsWith("##")) {
+              const cleanText = trimmed.replace(/^##\s*/, "");
+              elements.push(
+                <h3 key={idx} className="text-base font-black text-slate-100 mt-8 mb-3 first:mt-0 tracking-wide border-b border-white/5 pb-1 select-none">
+                  {parseInlineFormatting(cleanText)}
+                </h3>
+              );
+            } else if (trimmed.startsWith("#")) {
+              const cleanText = trimmed.replace(/^#\s*/, "");
+              elements.push(
+                <h2 key={idx} className="text-lg font-black text-white mt-10 mb-4 first:mt-0 tracking-tight select-none">
+                  {parseInlineFormatting(cleanText)}
+                </h2>
+              );
+            } else {
+              elements.push(
+                <p key={idx} className="leading-[1.7] text-slate-355 select-text my-2.5 pl-1">
+                  {parseInlineFormatting(trimmed)}
+                </p>
+              );
+            }
+          }
+
+          // Render remaining table if loop ends in table
+          if (inTable && tableRows.length > 0) {
+            elements.push(renderTableHelper(tableRows, elements.length));
+          }
+
+          return <div key={bIdx} className="space-y-1">{elements}</div>;
         })}
+      </div>
+    );
+  };
+
+  // Helper inside AICoach to render markdown tables inside horizontally-scrollable wrappers properly
+  const renderTableHelper = (rows: string[][], key: number | string) => {
+    if (rows.length === 0) return null;
+    const headers = rows[0];
+    const dataRows = rows.slice(1);
+
+    return (
+      <div key={key} className="w-full my-4 overflow-x-auto rounded-xl border border-white/10 shadow-lg bg-slate-900/60 scrollbar-thin">
+        <table className="w-full text-left text-xs md:text-sm border-collapse min-w-[480px]">
+          <thead>
+            <tr className="bg-white/[0.04] border-b border-white/10">
+              {headers.map((h, i) => (
+                <th key={i} className="px-4 py-3 font-extrabold text-white uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 font-medium">
+            {dataRows.map((row, rI) => (
+              <tr key={rI} className="hover:bg-white/[0.02] transition-colors leading-[1.6]">
+                {row.map((cell, cI) => (
+                  <td key={cI} className="px-4 py-2.5 text-slate-300">{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   };
@@ -926,8 +1077,17 @@ export default function AICoach({
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + ", " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   };
 
+  // Helper to extract clean text and attached PDF info from messages
+  const parseUserMessageDisplay = (text: string) => {
+    if (!text) return { cleanText: "", pdfName: null };
+    const match = text.match(/\[CONTEXT INTEGRATION: The student attached a study PDF file named "(.*?)"\./);
+    const pdfName = match ? match[1] : null;
+    const cleanText = text.split("\n\n[CONTEXT INTEGRATION:")[0];
+    return { cleanText, pdfName };
+  };
+
   return (
-    <div id="ai-coach-full-width-adaptive" className="max-w-7xl mx-auto flex flex-col md:flex-row h-[780px] bg-slate-950/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl relative">
+    <div id="ai-coach-full-width-adaptive" className="w-full h-full flex flex-col md:flex-row bg-[#08080c] overflow-hidden relative">
       
       {/* ================= BAR BUTTON MOBILE TRIGGER ============== */}
       <div className="absolute top-4 left-4 z-50 md:hidden">
@@ -1345,7 +1505,7 @@ export default function AICoach({
       <section className="flex-1 flex flex-col bg-[#0b0c10] overflow-hidden">
         
         {/* ================= CONVERSATION HEADER ================= */}
-        <header className="px-6 py-4 border-b border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0 bg-[#08080c] z-30 pt-16 sm:pt-4">
+        <header className="px-4 md:px-6 py-3 border-b border-white/5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 shrink-0 bg-[#08080c] z-30">
           
           {/* Active Title & Info */}
           <div className="flex-1 min-w-0 flex items-center gap-2">
@@ -1555,7 +1715,7 @@ export default function AICoach({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`flex-1 overflow-y-auto px-6 py-6 space-y-6 scroll-smooth bg-gradient-to-b from-[#0b0c10] to-[#06070a] relative ${
+          className={`flex-1 overflow-y-auto space-y-6 scroll-smooth bg-gradient-to-b from-[#0b0c10] to-[#06070a] relative selection:bg-indigo-500/30 selection:text-white ${
             isDraggingOver ? "outline-2 outline-dashed outline-indigo-500/50 bg-[#0c0d15]" : ""
           }`}
         >
@@ -1564,109 +1724,128 @@ export default function AICoach({
               <div className="p-4 rounded-full bg-indigo-600/20 mb-3 border border-indigo-500/30">
                 <Image className="w-8 h-8 text-indigo-400 animate-bounce" />
               </div>
-              <p className="text-sm font-black text-white uppercase tracking-wider pl-1">Drop file to attach!</p>
-              <p className="text-[11px] text-slate-400 mt-1">StudyForge AI supports JPG, PNG, and WEBP notes & screenshots</p>
-            </div>
-          )}
-          
-          {activeSession.messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500 max-w-lg mx-auto">
-              <Sparkles className="w-12 h-12 text-[#6366f1]/20 mb-4 animate-pulse" />
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Your study dialogue is blank</p>
-              <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-sm mt-2">
-                Ask doubts, formulate physics solvers, analyze notes, or pick one of the core academic tutoring prompt assistants below to jump in!
-              </p>
+              <p className="text-sm font-black text-white uppercase tracking-wider pl-1 font-display">Drop file to attach!</p>
+              <p className="text-[11px] text-slate-400 mt-1 font-mono">StudyForge AI supports JPG, PNG, and WEBP notes & screenshots</p>
             </div>
           )}
 
-          {/* Render Active messages list */}
-          {activeSession.messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-4 ${
-                m.role === "user" ? "flex-row-reverse" : "flex-row"
-              }`}
-            >
-              {/* Avatar Icon */}
-              <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border text-[11px] font-black tracking-tighter ${
-                  m.role === "user"
-                    ? "bg-indigo-600/20 border-indigo-500/30 text-indigo-300 shadow-md shadow-indigo-500/5"
-                    : "bg-slate-900 border-white/5 text-purple-400"
-                }`}
-              >
-                {m.role === "user" ? "ME" : "SF"}
+          {/* Centering envelope for comfortable standard reading width (ChatGPT alignment) */}
+          <div className="max-w-4xl w-full mx-auto px-3 sm:px-4 py-4 space-y-6 flex flex-col">
+            
+            {activeSession.messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500 max-w-lg mx-auto py-16">
+                <Sparkles className="w-12 h-12 text-[#6366f1]/20 mb-4 animate-pulse" />
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1 font-display">Your study dialogue is blank</p>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed max-w-sm mt-3 leading-6">
+                  Ask doubts, formulate physics solvers, analyze notes, or pick one of the core academic tutoring prompt assistants below to jump in!
+                </p>
               </div>
+            )}
 
-              {/* Message Bubble Frame */}
-              <div
-                className={`relative group max-w-2xl px-5 py-4 rounded-2xl shadow-xl transition-all ${
-                  m.role === "user"
-                    ? "bg-[#181a26]/90 border border-indigo-500/10 text-slate-100 rounded-tr-none text-[13px] font-semibold"
-                    : "bg-[#0b0c11]/80 border border-white/5 rounded-tl-none"
-                }`}
-              >
-                {/* Message Content */}
-                {m.role === "user" ? (
-                  <div className="space-y-3">
-                    {m.imageUrl && (
-                      <div className="relative overflow-hidden rounded-xl border border-white/10 max-h-64 bg-black/40 flex justify-center items-center shadow-inner">
-                        <img 
-                          src={m.imageUrl} 
-                          alt="Uploaded material" 
-                          className="max-h-64 max-w-full object-contain rounded-xl shadow-lg border border-white/5 hover:scale-[1.02] transition-transform duration-300"
-                          referrerPolicy="no-referrer"
-                        />
+            {/* Render Active messages list */}
+            {activeSession.messages.map((m, i) => {
+              if (m.role === "user") {
+                const { cleanText, pdfName } = parseUserMessageDisplay(m.content);
+                return (
+                  <div
+                    key={i}
+                    className="w-full flex flex-col items-end animate-fadeIn"
+                  >
+                    <div className="max-w-[90%] sm:max-w-[80%] flex flex-col gap-1.5 items-end">
+                      {/* User Message Bubble */}
+                      <div className="bg-[#181a26]/95 border border-indigo-500/20 text-slate-100 rounded-2xl rounded-tr-none px-4.5 py-3 shadow-xl text-sm sm:text-base leading-relaxed">
+                        
+                        {/* Render attached upload Image if present */}
+                        {m.imageUrl && (
+                          <div className="mb-2.5 relative overflow-hidden rounded-xl border border-white/10 max-h-64 bg-black/40 flex justify-center items-center shadow-inner">
+                            <img 
+                              src={m.imageUrl} 
+                              alt="Uploaded material" 
+                              className="max-h-64 max-w-full object-contain rounded-xl shadow-lg border border-white/5"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                        )}
+
+                        {/* Render attached PDF chip badge inside user bubble */}
+                        {pdfName && (
+                          <div className="mb-2.5 flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-xl text-xs text-indigo-300 font-bold shrink-0 font-mono">
+                            <FileText className="w-3.5 h-3.5" />
+                            <span className="truncate">📎 Connected Study Source: {pdfName}</span>
+                          </div>
+                        )}
+
+                        <p className="whitespace-pre-wrap select-text selection:bg-indigo-500/35 font-medium">{cleanText}</p>
                       </div>
-                    )}
-                    <p className="whitespace-pre-wrap select-text selection:bg-indigo-500/30 font-semibold">{m.content}</p>
+
+                      {/* Timestamp & Copy bar row */}
+                      <div className="flex gap-3 items-center text-[9px] uppercase font-mono text-zinc-500 px-1 select-none">
+                        <span>{getUpdateFormattedDate(m.timestamp)}</span>
+                        <button
+                          onClick={() => handleCopyMessageText(cleanText, i)}
+                          className="hover:text-white transition-all cursor-pointer flex items-center gap-1 font-extrabold"
+                          title="Copy text of user message"
+                        >
+                          {copiedMessageIdx === i ? <span className="text-emerald-400">Copied!</span> : <span>Copy</span>}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  renderRichMarkdown(m.content)
-                )}
+                );
+              }
 
-                {/* Bubble Footer Utilities (Speaker and Copy Buttons) */}
+              // Else if Assistant (Model) message
+              return (
                 <div
-                  className={`mt-3 flex items-center gap-3 border-t border-white/5 pt-2.5 text-[10px] uppercase font-black tracking-widest transition-opacity ${
-                    m.role === "user" ? "text-indigo-400/60" : "text-slate-500/80"
-                  }`}
+                  key={i}
+                  className="w-full flex gap-3 sm:gap-4 items-start bg-[#12131a]/40 border border-white/[0.03] p-4 sm:p-5 rounded-2xl animate-fadeIn mr-auto"
                 >
-                  <span>{getUpdateFormattedDate(m.timestamp)}</span>
-                  
-                  {/* Copy Button */}
-                  <button
-                    onClick={() => handleCopyMessageText(m.content, i)}
-                    className="hover:text-white flex items-center gap-1 transition-all"
-                    title="Copy to clipboard"
-                  >
-                    {copiedMessageIdx === i ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        <span className="text-emerald-400 font-bold">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        <span>Copy</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 shrink-0 text-xs font-black font-display shadow-md shadow-purple-500/5">
+                    SF
+                  </div>
 
-                  {/* Read Aloud Text-to-Speech simulation helper */}
-                  <button
-                    onClick={() => handleSpeakTextAlert(m.content, i)}
-                    className={`hover:text-white flex items-center gap-1 transition-all ${
-                      activeVoiceMessageIdx === i ? "text-indigo-400" : ""
-                    }`}
-                    title="Speak text aloud"
-                  >
-                    <Volume2 className="w-3 h-3" />
-                    <span>{activeVoiceMessageIdx === i ? "Stop Voice" : "Listen Speak"}</span>
-                  </button>
+                  <div className="flex-1 min-w-0 select-text">
+                    {renderRichMarkdown(m.content)}
+                    
+                    {/* Micro actions panels */}
+                    <div className="mt-4 flex items-center flex-wrap gap-4 border-t border-white/5 pt-3.5 text-[10px] uppercase font-black tracking-widest text-slate-500 select-none">
+                      <span className="font-mono">{getUpdateFormattedDate(m.timestamp)}</span>
+                      
+                      {/* Copy response */}
+                      <button
+                        onClick={() => handleCopyMessageText(m.content, i)}
+                        className="hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                        title="Copy Response Text"
+                      >
+                        {copiedMessageIdx === i ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span className="text-emerald-400 font-extrabold">Copied Response!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy response</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Voice Speak synthesis */}
+                      <button
+                        onClick={() => handleSpeakTextAlert(m.content, i)}
+                        className={`hover:text-white flex items-center gap-1.5 transition-all cursor-pointer ${
+                          activeVoiceMessageIdx === i ? "text-indigo-400" : ""
+                        }`}
+                        title="Dictate response speak"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                        <span>{activeVoiceMessageIdx === i ? "Stop Voice" : "Speak response"}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              );
+            })}
 
           {/* AI Generation State Container with detailed loader log lines */}
           {isChatLoading && (
@@ -1730,6 +1909,7 @@ export default function AICoach({
           )}
 
           <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {/* ================= CHAT ERROR STATUS WITH RETRY OPTIONS ============== */}
@@ -1849,8 +2029,63 @@ export default function AICoach({
             ))}
           </div>
 
+          {/* PDF attachment indicator chip bar if a study item is linked */}
+          <AnimatePresence>
+            {attachedPdf && (
+              <motion.div 
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 5 }}
+                className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 px-3.5 py-1.5 rounded-xl text-xs text-indigo-300 font-bold select-none"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span className="truncate">📎 Connected Study PDF: {attachedPdf.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setAttachedPdfId(null)}
+                  className="ml-2 hover:text-white text-slate-500 font-extrabold cursor-pointer text-xs"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Render PDF file picker dropdown list if open */}
+          {showPdfPicker && (
+            <div className="p-4 bg-[#0d0e14]/95 border border-white/5 rounded-2xl space-y-2 mt-2 max-h-48 overflow-y-auto shadow-2xl animate-fadeIn relative z-25">
+              <div className="flex justify-between items-center text-[9px] text-slate-500 uppercase tracking-widest font-black select-none">
+                <span>Select active recall document source</span>
+                <button onClick={() => setShowPdfPicker(false)} className="hover:text-white cursor-pointer hover:underline text-[9px]">✕ Close</button>
+              </div>
+              {pdfs && pdfs.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1.5">
+                  {pdfs.map(pdf => (
+                    <button
+                      key={pdf.id}
+                      type="button"
+                      onClick={() => {
+                        setAttachedPdfId(pdf.id);
+                        setShowPdfPicker(false);
+                      }}
+                      className="text-left p-2 rounded-xl border border-white/5 bg-slate-900/40 hover:bg-white/5 transition-all flex items-center gap-2 select-none"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-200 truncate">{pdf.name}</p>
+                        <p className="text-[9px] text-slate-500 font-mono mt-0.5">Chapters / total pages: {pdf.totalPages}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500 italic p-1">No vault PDFs uploaded. Upload files first inside PDF Vault!</p>
+              )}
+            </div>
+          )}
+
           {/* Form Input panel with Enter dispatch listener */}
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <form
               onSubmit={(e) => handleSendCoachMessage(e)}
               className="flex-1 flex gap-2"
@@ -1863,39 +2098,67 @@ export default function AICoach({
                 className="hidden"
               />
               
+              {/* Button A: Screenshot/Image Upload */}
               <button
                 type="button"
                 disabled={isChatLoading}
                 onClick={() => fileInputRef.current?.click()}
-                title="Upload screenshot or document (JPG, PNG, WEBP)"
-                className="px-4 bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-500/30 text-indigo-400 hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50"
+                title="Upload textbook notes page, screenshot, or graph (JPG, PNG, WEBP)"
+                className="p-3 bg-white/5 hover:bg-indigo-600/20 border border-white/10 hover:border-indigo-505/30 text-indigo-400 hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50"
               >
                 <Image className="w-4 h-4" />
               </button>
 
+              {/* Button B: PDF Vault Context Connector */}
+              <button
+                type="button"
+                disabled={isChatLoading}
+                onClick={() => setShowPdfPicker(!showPdfPicker)}
+                title="Attach PDF book chapters context from vault"
+                className={`p-3 bg-white/5 hover:bg-indigo-600/20 border ${attachedPdfId ? "border-purple-500 text-purple-400" : "border-white/10 text-slate-400"} hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50`}
+              >
+                <FileText className="w-4 h-4" />
+              </button>
+
+              {/* Button C: Voice speech dictation Mic */}
+              <button
+                type="button"
+                disabled={isChatLoading}
+                onClick={handleToggleVoiceInput}
+                title="Speak text via vocal voice dictation"
+                className={`p-3 bg-white/5 hover:bg-red-500/10 border ${isRecording ? "border-red-500 text-red-400 animate-pulse bg-red-500/5" : "border-white/10 text-slate-400"} hover:text-white rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 disabled:opacity-50`}
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+
+              {/* Text Area Box */}
               <input
                 type="text"
                 value={coachInput}
                 onChange={(e) => setCoachInput(e.target.value)}
                 placeholder={
-                  activeSession.subject === "General Study"
-                    ? "Ask anything about active recall, Pomodoro limits, or general study loads..."
+                  isRecording 
+                    ? "Listening to voice dictation... Speak into microphone."
+                    : activeSession.subject === "General Study"
+                    ? "Ask about active recall, physics solvers, notes summaries..."
                     : activeSession.subject === "Custom Focus"
                     ? `Ask about ${activeSession.customSubjectText || customSubjectText || "your custom topic"}...`
                     : `Ask AI Coach about ${activeSession.subject}...`
                 }
-                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 transition-all font-medium"
+                className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500/50 transition-all font-medium min-w-0"
               />
+
+              {/* Send Button */}
               <button
                 type="submit"
                 disabled={(!coachInput.trim() && !uploadedImageBase64) || isChatLoading}
-                className="px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-505 hover:to-purple-505 disabled:bg-slate-800 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 rounded-2xl text-white transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-lg"
+                className="px-4sm px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:bg-slate-800 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-600 rounded-2xl text-white transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-lg disabled:cursor-not-allowed"
               >
                 <Send className="w-4 h-4" />
               </button>
             </form>
 
-            {/* Clear button to reset discussion log */}
+            {/* Clear conversation helper button */}
             <button
               onClick={() => {
                 if (window.confirm("Are you sure you want to clear conversation history?")) {
@@ -1903,7 +2166,7 @@ export default function AICoach({
                 }
               }}
               title="Clear conversation"
-              className="px-4 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-slate-400 hover:text-red-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0"
+              className="p-3 bg-white/5 hover:bg-red-500/15 border border-white/10 hover:border-red-500/30 text-slate-400 hover:text-red-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
