@@ -60,10 +60,334 @@ interface ChatSession {
   updatedAt: string; // ISO String
 }
 
+// ================= PREMIUM INTERACTIVE CHAT WIDGETS =================
+
+function FlashcardDeckWidget({ 
+  cards, 
+  onAddCard 
+}: { 
+  cards: Array<{ front: string; back: string }>; 
+  onAddCard: (card: { front: string; back: string }) => void;
+  key?: any;
+}) {
+  const [idx, setIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [addedIds, setAddedIds] = useState<Record<number, boolean>>({});
+
+  const card = cards[idx];
+  if (!card) return null;
+
+  return (
+    <div className="w-full max-w-md my-4 bg-[#0F1017]/90 border border-white/10 rounded-2xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-indigo-500" />
+      
+      <div className="flex justify-between items-center mb-4 text-[10px] uppercase font-black tracking-widest text-[#a5b4fc] select-none">
+        <span className="flex items-center gap-1"><Brain className="w-3.5 h-3.5" /> StudyForge Active Recall</span>
+        <span className="font-mono bg-white/5 px-2 py-0.5 rounded-md">{idx + 1} of {cards.length}</span>
+      </div>
+
+      {/* 3D Flip Card Container */}
+      <div 
+        onClick={() => setFlipped(!flipped)}
+        className="w-full h-44 cursor-pointer relative perspective-1000 mb-5 select-none"
+      >
+        <motion.div 
+          className="w-full h-full duration-500 transform-style-3d relative"
+          animate={{ rotateY: flipped ? 180 : 0 }}
+          transition={{ type: "spring", stiffness: 120, damping: 20 }}
+        >
+          {/* Front Side */}
+          <div className="absolute inset-0 w-full h-full bg-[#161824] border border-white/5 rounded-xl p-5 flex flex-col items-center justify-center text-center backface-hidden shadow-lg">
+            <span className="absolute top-3 left-4 text-[9px] uppercase tracking-wider font-extrabold bg-purple-500/10 text-purple-400 px-2.5 py-0.5 rounded-full">Query Trigger</span>
+            <p className="text-sm font-bold text-slate-100 leading-relaxed px-2">{card.front}</p>
+            <span className="absolute bottom-3 text-[9px] text-slate-500 font-extrabold uppercase tracking-widest animate-pulse">Touch to Flip</span>
+          </div>
+
+          {/* Back Side */}
+          <div className="absolute inset-0 w-full h-full bg-[#11131c] border border-indigo-500/20 rounded-xl p-5 flex flex-col items-center justify-center text-center backface-hidden shadow-lg rotateY-180">
+            <span className="absolute top-3 left-4 text-[9px] uppercase tracking-wider font-extrabold bg-[#10b981]/15 text-[#10b981] px-2.5 py-0.5 rounded-full">Recall Verification</span>
+            <p className="text-sm font-semibold text-indigo-300 leading-relaxed px-2 italic">"{card.back}"</p>
+            <span className="absolute bottom-3 text-[9px] text-emerald-500/80 font-bold uppercase tracking-widest">Active Learned</span>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Actions and Progress bar */}
+      <div className="flex justify-between items-center gap-4">
+        <div className="flex items-center gap-1.5">
+          <button 
+            disabled={idx === 0}
+            onClick={() => { setIdx(idx - 1); setFlipped(false); }}
+            className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-lg border border-white/5 disabled:opacity-30 cursor-pointer transition-all"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button 
+            disabled={idx === cards.length - 1}
+            onClick={() => { setIdx(idx + 1); setFlipped(false); }}
+            className="p-2 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-lg border border-white/5 disabled:opacity-30 cursor-pointer transition-all"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <button
+          onClick={() => {
+            onAddCard(card);
+            setAddedIds({...addedIds, [idx]: true});
+          }}
+          disabled={addedIds[idx]}
+          className={`flex items-center gap-1.5 px-3.5 py-2 text-[9px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+            addedIds[idx] 
+              ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" 
+              : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg hover:shadow-indigo-500/15"
+          }`}
+        >
+          {addedIds[idx] ? (
+            <>
+              <Check className="w-3.5 h-3.5" /> Added to Vault
+            </>
+          ) : (
+            <>
+              <Plus className="w-3.5 h-3.5" /> Save to Revision
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuizDeckWidget({ 
+  questions, 
+  onAwardRecall 
+}: { 
+  questions: QuizQuestion[]; 
+  onAwardRecall: (xp: number, coins: number) => void;
+  key?: any;
+}) {
+  const [cur, setCur] = useState(0);
+  const [selectedOpt, setSelectedOpt] = useState<number | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+
+  const q = questions[cur];
+
+  const handleOptionSelect = (idx: number) => {
+    if (checked) return;
+    setSelectedOpt(idx);
+  };
+
+  const handleCheck = () => {
+    if (selectedOpt === null) return;
+    setChecked(true);
+    if (selectedOpt === q.correctAnswerIndex) {
+      setScore(s => s + 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (cur < questions.length - 1) {
+      setCur(c => c + 1);
+      setSelectedOpt(null);
+      setChecked(false);
+    } else {
+      setFinished(true);
+      const passed = score >= Math.ceil(questions.length / 2);
+      if (passed) {
+        onAwardRecall(120, 30);
+      }
+    }
+  };
+
+  const handleReset = () => {
+    setCur(0);
+    setSelectedOpt(null);
+    setChecked(false);
+    setScore(0);
+    setFinished(false);
+  };
+
+  if (finished) {
+    const passed = score >= Math.ceil(questions.length / 2);
+    return (
+      <div className="w-full max-w-lg my-4 bg-[#0F1017]/95 border border-white/10 rounded-2xl p-6 shadow-2xl relative text-center backdrop-blur-md">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
+        
+        <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 mb-4 font-black text-xl font-mono">
+          {score}/{questions.length}
+        </div>
+
+        <h4 className="text-base font-black text-white uppercase tracking-wider">Academic Quiz Report</h4>
+        <p className="text-slate-400 text-xs mt-2 leading-relaxed max-w-xs mx-auto">
+          {passed 
+            ? "🏆 Outstanding intellectual performance! You completed the quiz with high-fidelity recall: +120 XP, +30 Coins" 
+            : "📚 Recommended: study formulas and lecture outlines before retaking standard diagnostic examinations."}
+        </p>
+
+        <div className="mt-5 flex gap-3 justify-center">
+          <button 
+            onClick={handleReset}
+            className="px-4.5 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 text-[9px] uppercase font-black tracking-wider rounded-xl cursor-pointer border border-white/5"
+          >
+            Train Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!q) return null;
+
+  return (
+    <div className="w-full max-w-lg my-4 bg-[#0F1017]/95 border border-white/10 rounded-2xl p-5 shadow-2xl relative backdrop-blur-md">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
+      
+      <div className="flex justify-between items-center mb-4 text-[10px] font-mono font-black tracking-widest text-indigo-400 select-none">
+        <span className="flex items-center gap-1.5"><HelpCircle className="w-3.5 h-3.5" /> Academic Evaluation</span>
+        <span className="bg-white/5 px-2 py-0.5 rounded-md">Question {cur + 1} of {questions.length}</span>
+      </div>
+
+      <p className="text-xs sm:text-sm font-bold text-white leading-relaxed mb-4">{q.question}</p>
+
+      {/* Options Panel */}
+      <div className="space-y-2 mb-4">
+        {q.options.map((opt, oI) => {
+          let optStyle = "bg-white/[0.01] hover:bg-white/[0.03] border-white/5 text-slate-300";
+          if (selectedOpt === oI) {
+            optStyle = "bg-[#6366f1]/10 border-[#6366f1]/40 text-indigo-200";
+          }
+          if (checked) {
+            if (oI === q.correctAnswerIndex) {
+              optStyle = "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-bold";
+            } else if (selectedOpt === oI) {
+              optStyle = "bg-rose-500/10 border-rose-500/30 text-rose-400";
+            } else {
+              optStyle = "bg-white/[0.005] border-white/5 text-slate-600 cursor-not-allowed opacity-40";
+            }
+          }
+
+          return (
+            <button
+              key={oI}
+              onClick={() => handleOptionSelect(oI)}
+              disabled={checked}
+              className={`w-full text-left p-3 rounded-xl border transition-all text-xs font-semibold leading-relaxed flex items-center justify-between cursor-pointer ${optStyle}`}
+            >
+              <span>{opt}</span>
+              {checked && oI === q.correctAnswerIndex && (
+                <span className="text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-mono">Verified Solution</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Explanation drawer inside active quiz context */}
+      <AnimatePresence>
+        {checked && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden mb-4 bg-slate-900/50 border border-white/5 rounded-xl p-3.5 text-[10px] leading-relaxed text-slate-400 font-medium text-left"
+          >
+            <span className="font-bold text-slate-200 uppercase tracking-wider block mb-1 font-mono text-[8px] text-[#818cf8]">Solution Explanation</span>
+            {q.explanation}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex justify-end pt-2 border-t border-white/5">
+        {!checked ? (
+          <button
+            onClick={handleCheck}
+            disabled={selectedOpt === null}
+            className="px-4.5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-black text-[9px] uppercase tracking-wider rounded-xl cursor-pointer shadow-lg"
+          >
+            Verify Choice
+          </button>
+        ) : (
+          <button
+            onClick={handleNext}
+            className="px-4.5 py-2 bg-[#10b981] hover:bg-[#059669] text-white font-black text-[9px] uppercase tracking-wider rounded-xl cursor-pointer shadow-lg"
+          >
+            {cur === questions.length - 1 ? "Complete Quiz" : "Advance Question"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StudyPlanPreviewWidget({ 
+  plan, 
+  onApplyPlan 
+}: { 
+  plan: any; 
+  onApplyPlan: (plan: any) => void;
+  key?: any;
+}) {
+  const [applied, setApplied] = useState(false);
+
+  return (
+    <div className="w-full max-w-md my-4 bg-[#0F1017]/95 border border-white/10 rounded-2xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-yellow-500" />
+      
+      <div className="mb-4 text-[10px] uppercase font-mono font-black tracking-widest text-[#f59e0b] select-none flex items-center gap-1.5 animate-pulse">
+        <Target className="w-3.5 h-3.5" /> High-Fidelity Study Blueprint
+      </div>
+
+      <h4 className="text-xs sm:text-sm font-black text-white uppercase tracking-wide">Course: {plan.subject || "Academic Curricula"}</h4>
+      <p className="text-[11.5px] mt-2.5 text-slate-400 leading-normal font-medium">{plan.overview}</p>
+      
+      {plan.proTip && (
+        <div className="bg-yellow-500/5 border border-yellow-500/10 p-3 rounded-xl text-[10px] text-yellow-300 leading-normal tracking-wide font-medium mt-3">
+          💡 <strong>Pro Strategy:</strong> {plan.proTip}
+        </div>
+      )}
+
+      {/* Structured study milestones timeline */}
+      <div className="my-5 relative pl-4 border-l border-white/5 space-y-4 text-left select-none">
+        {plan.milestones?.map((ml: any, mI: number) => (
+          <div key={mI} className="relative">
+            <span className="absolute -left-[20.5px] top-1 w-3 h-3 rounded-full border border-yellow-500/45 bg-[#0F1017]" />
+            <h5 className="text-[11px] font-black text-slate-200 uppercase tracking-wide">{ml.week} · {ml.title}</h5>
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {ml.topics?.map((topic: string, tIdx: number) => (
+                <span key={tIdx} className="text-[9px] bg-white/5 text-slate-400 border border-white/[0.03] px-2 py-0.5 rounded font-semibold">{topic}</span>
+              ))}
+            </div>
+            <span className="text-[9px] text-amber-500 font-extrabold uppercase mt-1.5 block font-mono">Allocation: {ml.estimatedHours} study hours</span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={() => {
+          onApplyPlan(plan);
+          setApplied(true);
+        }}
+        disabled={applied}
+        className={`w-full py-2.5 text-[9px] uppercase tracking-widest font-black rounded-xl transition-all cursor-pointer ${
+          applied 
+            ? "bg-[#10b981]/15 border border-[#10b981]/20 text-[#10b981]" 
+            : "bg-amber-600 hover:bg-amber-500 text-white shadow-lg hover:shadow-amber-500/15"
+        }`}
+      >
+        {applied ? "✓ Study Plan Activated!" : "Apply Timetable to Study Planner"}
+      </button>
+    </div>
+  );
+}
+
 interface AICoachProps {
   subjects: AcademicSubject[];
   subjectsList: any[];
   studyPlans: StudyPlan[];
+  setStudyPlans: React.Dispatch<React.SetStateAction<StudyPlan[]>>;
+  setFlashcards: React.Dispatch<React.SetStateAction<Flashcard[]>>;
   routineData: any;
   pdfs: any[];
   xp: number;
@@ -80,6 +404,8 @@ export default function AICoach({
   subjects,
   subjectsList,
   studyPlans,
+  setStudyPlans,
+  setFlashcards,
   routineData,
   pdfs,
   xp,
@@ -892,15 +1218,106 @@ export default function AICoach({
     if (!text) return null;
 
     // Split blocks based on triple backticks for code block visualization
-    const blocks = text.split(/(\`\`\`[a-zA-Z0-9]*\n[\s\S]*?\n\`\`\`)/);
+    const blocks = text.split(/(\`\`\`[a-zA-Z0-9-]*\n[\s\S]*?\n\`\`\`)/);
 
     return (
       <div className="space-y-4 text-slate-200 text-sm sm:text-base leading-[1.7] select-text font-normal">
         {blocks.map((block, bIdx) => {
           if (block.startsWith("```")) {
-            const match = block.match(/^\`\`\`([a-zA-Z0-9]*)\n([\s\S]*?)\n\`\`\`$/);
-            const language = match ? match[1] || "code" : "code";
+            const match = block.match(/^\`\`\`([a-zA-Z0-9-]*)\n([\s\S]*?)\n\`\`\`$/);
+            const language = match ? (match[1] || "code").toLowerCase() : "code";
             const codeContent = match ? match[2] : block.replace(/^\`\`\`|\`\`\`$/g, "");
+
+            // 1. Dynamic Flashcards Deck
+            if (language === "flashcard-deck" || language === "flashcards-deck") {
+              try {
+                const parsedCards = JSON.parse(codeContent.trim());
+                if (Array.isArray(parsedCards) && parsedCards.length > 0) {
+                  return (
+                    <FlashcardDeckWidget 
+                      key={bIdx}
+                      cards={parsedCards} 
+                      onAddCard={(card) => {
+                        setFlashcards(prev => {
+                          const nextId = prev.length > 0 ? Math.max(...prev.map(c => c.id)) + 1 : 1;
+                          return [...prev, { id: nextId, front: card.front, back: card.back }];
+                        });
+                        awardXp(15);
+                        addCoins(5);
+                        onTriggerNotification("Flashcard Saved", "🎓 Card appended to Spaced Revision! +15 XP +5 Coins");
+                      }}
+                    />
+                  );
+                }
+              } catch (e) {
+                console.error("Failed to parse flashcard JSON from code block", e);
+              }
+            }
+
+            // 2. Dynamic Practice MCQs Quiz
+            if (language === "quiz-deck" || language === "quizzes-deck" || language === "practice-quiz") {
+              try {
+                const parsedQuiz = JSON.parse(codeContent.trim());
+                if (Array.isArray(parsedQuiz) && parsedQuiz.length > 0) {
+                  return (
+                    <QuizDeckWidget 
+                      key={bIdx}
+                      questions={parsedQuiz} 
+                      onAwardRecall={(earnedXp, earnedCoins) => {
+                        awardXp(earnedXp);
+                        addCoins(earnedCoins);
+                        onTriggerNotification("Quiz Finished", "🏆 Active quiz training successfully processed!");
+                      }}
+                    />
+                  );
+                }
+              } catch (e) {
+                console.error("Failed to parse quiz JSON from code block", e);
+              }
+            }
+
+            // 3. Dynamic Custom Weekly Study Timetable Planner
+            if (language === "study-plan-deck" || language === "study-plan") {
+              try {
+                const parsedPlan = JSON.parse(codeContent.trim());
+                if (parsedPlan && (parsedPlan.milestones || parsedPlan.overview)) {
+                  return (
+                    <StudyPlanPreviewWidget 
+                      key={bIdx}
+                      plan={parsedPlan} 
+                      onApplyPlan={(appliedPlan) => {
+                        setStudyPlans(prev => {
+                          const newPlanObj = {
+                            id: `ai-${Date.now()}`,
+                            subject: appliedPlan.subject || "AI Recommended",
+                            level: "Strategic Blueprint",
+                            overview: appliedPlan.overview || "",
+                            proTip: appliedPlan.proTip || "",
+                            milestones: (appliedPlan.milestones || []).map((m: any) => ({
+                              week: m.week,
+                              title: m.title,
+                              topics: m.topics || [],
+                              estimatedHours: m.estimatedHours || 4,
+                              quizAvailable: true
+                            })),
+                            progress: 0,
+                            createdAt: new Date().toISOString()
+                          };
+                          const nextPlans = [newPlanObj, ...prev];
+                          localStorage.setItem("sf_plans_v2", JSON.stringify(nextPlans));
+                          return nextPlans;
+                        });
+                        awardXp(100);
+                        addCoins(25);
+                        onTriggerNotification("Study Plan Saved", "🎯 Custom strategic blueprint loaded into Study Planner successfully!");
+                      }}
+                    />
+                  );
+                }
+              } catch (e) {
+                console.error("Failed to parse study plan JSON from code block", e);
+              }
+            }
 
             return (
               <div key={bIdx} className="rounded-xl overflow-hidden border border-white/10 bg-slate-950/90 my-4 font-mono shadow-lg">

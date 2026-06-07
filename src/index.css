@@ -14,3 +14,20 @@
     color: #f1f5f9;
   }
 }
+
+@utility perspective-1000 {
+  perspective: 1000px;
+}
+
+@utility transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+@utility backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@utility rotateY-180 {
+  transform: rotateY(180deg);
+}
