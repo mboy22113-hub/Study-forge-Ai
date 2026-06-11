@@ -1454,6 +1454,7 @@ ${computedRankings.map((rk, idx) => `
       const userDocRef = doc(db, "users", auth.currentUser.uid);
       await setDoc(userDocRef, {
         name: userName,
+        email: auth.currentUser.email || "",
         xp: xp,
         coins: coins,
         streak: streak,
@@ -1470,6 +1471,7 @@ ${computedRankings.map((rk, idx) => `
       setAllChangesSaved(true);
     } catch (err) {
       console.error("Error saving profile:", err);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${auth.currentUser.uid}`);
     } finally {
       setIsCloudSyncing(false);
     }
@@ -1499,6 +1501,7 @@ ${computedRankings.map((rk, idx) => `
       setAllChangesSaved(true);
     } catch (err) {
       console.error(`Error syncing ${collectionName}:`, err);
+      handleFirestoreError(err, OperationType.WRITE, `users/${auth.currentUser.uid}/${collectionName}`);
     } finally {
       setIsCloudSyncing(false);
     }
@@ -1511,9 +1514,14 @@ ${computedRankings.map((rk, idx) => `
       showToast(`🔥 Synced with Google Account: ${result.user.displayName}`);
       setShowAuthModal(false);
       setCurrentTab("dashboard");
-    } catch (err) {
-      console.error("Google authentication error:", err);
-      showToast("❌ Google Authentication failed. Try again.");
+    } catch (err: any) {
+      if (err && (err.code === "auth/popup-closed-by-user" || (err.message && err.message.includes("popup-closed-by-user")))) {
+        showToast("ℹ️ Sign-In cancelled (popup closed).");
+        console.warn("Google sign-in popup was closed by the user.");
+      } else {
+        console.error("Google authentication error:", err);
+        showToast("❌ Google Authentication failed. Try again.");
+      }
     } finally {
       setIsAuthPending(false);
     }
@@ -1537,7 +1545,13 @@ ${computedRankings.map((rk, idx) => `
         setIsCloudSyncing(true);
         try {
           const userDocRef = doc(db, "users", u.uid);
-          const snap = await getDoc(userDocRef);
+          let snap;
+          try {
+            snap = await getDoc(userDocRef);
+          } catch (e) {
+            handleFirestoreError(e, OperationType.GET, `users/${u.uid}`);
+            return;
+          }
           
           if (snap.exists()) {
             const uData = snap.data();
@@ -1572,7 +1586,12 @@ ${computedRankings.map((rk, idx) => `
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             };
-            await setDoc(userDocRef, tempProfile);
+            try {
+              await setDoc(userDocRef, tempProfile);
+            } catch (e) {
+              handleFirestoreError(e, OperationType.CREATE, `users/${u.uid}`);
+              return;
+            }
             setTempName(u.displayName || userName);
             
             const hasOnboarded = localStorage.getItem("sf_onboarded") === "true";
@@ -1615,7 +1634,7 @@ ${computedRankings.map((rk, idx) => `
 
   useEffect(() => {
     if (firebaseUser && isLoadedFromCloud) {
-      syncStateCollectionToCloud("user_notes", userNotes, "id");
+       syncStateCollectionToCloud("notes", userNotes, "id");
     }
   }, [userNotes]);
 
@@ -1655,10 +1674,12 @@ ${computedRankings.map((rk, idx) => `
           onboardingSubjects: mainSubjects,
           onboardingGoals: studyGoals,
           name: tempName.trim(),
+          email: auth.currentUser.email || "",
           updatedAt: new Date().toISOString()
         }, { merge: true });
       } catch (err) {
         console.error("Error setting onboarding info:", err);
+        handleFirestoreError(err, OperationType.UPDATE, `users/${auth.currentUser.uid}`);
       }
     }
     
