@@ -1,0 +1,168 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User gamification scoring, streak record, profile and educational background onboarding details.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "xp": { "type": "integer" },
+        "level": { "type": "integer" },
+        "coins": { "type": "integer" },
+        "streak": { "type": "integer" },
+        "lastActiveDate": { "type": "string" },
+        "onboardingLevel": { "type": "string" },
+        "onboardingCourse": { "type": "string" },
+        "onboardingSubjects": { "type": "array" },
+        "onboardingGoals": { "type": "string" },
+        "profilePicUrl": { "type": "string" },
+        "activeDates": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "xp"]
+    },
+    "StudyPlan": {
+      "title": "StudyPlan",
+      "description": "Structured syllabus timeline details representing individual schedules mapped to exams.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "level": { "type": "string" },
+        "overview": { "type": "string" },
+        "proTip": { "type": "string" },
+        "milestones": { "type": "array" },
+        "progress": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "subject", "level"]
+    },
+    "Flashcard": {
+      "title": "Flashcard",
+      "description": "Spaced repetition dynamic recall study item pairing a concept front and back.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "front": { "type": "string" },
+        "back": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "front", "back"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "AI-generated diagnostic multiple-choice assessments solved by the student.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "questions": { "type": "array" },
+        "score": { "type": "integer" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "subject", "questions"]
+    },
+    "FocusSession": {
+      "title": "FocusSession",
+      "description": "Deep work countdown trace logs storing total elapsed focus duration and awarded performance levels.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "durationMinutes": { "type": "integer" },
+        "type": { "type": "string" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "xpAwarded": { "type": "integer" }
+      },
+      "required": ["id", "durationMinutes", "type", "completedAt", "xpAwarded"]
+    },
+    "PrayerDay": {
+      "title": "PrayerDay",
+      "description": "Spiritual track checkpoints logging daily prayer fulfillment levels.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "prayers": { "type": "object" }
+      },
+      "required": ["date", "prayers"]
+    },
+    "WakeUpLog": {
+      "title": "WakeUpLog",
+      "description": "Circadian tracking database storing wakeup time targets and alignment states.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "wakeTime": { "type": "string" },
+        "sleepTime": { "type": "string" },
+        "isEarlyWakeUp": { "type": "boolean" }
+      },
+      "required": ["date", "wakeTime", "isEarlyWakeUp"]
+    },
+    "AcademicGoal": {
+      "title": "AcademicGoal",
+      "description": "Student-configured dynamic task goals.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "targetDate": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "xpReward": { "type": "integer" }
+      },
+      "required": ["id", "title", "targetDate", "completed"]
+    },
+    "UserNote": {
+      "title": "UserNote",
+      "description": "Scholastically-linked scratch notes related to textbook chapters.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "content"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Root user profile with global gamification elements"
+    },
+    "/users/{userId}/plans/{planId}": {
+      "schema": "StudyPlan",
+      "description": "Secure list of AI-generated study syllabi plans"
+    },
+    "/users/{userId}/flashcards/{flashcardId}": {
+      "schema": "Flashcard",
+      "description": "Flashcards compiled by user for spaced recollection review"
+    },
+    "/users/{userId}/quizzes/{quizId}": {
+      "schema": "Quiz",
+      "description": "Assessments completed and solved by user"
+    },
+    "/users/{userId}/focus/{sessionId}": {
+      "schema": "FocusSession",
+      "description": "Historical focus blocks log statistics"
+    },
+    "/users/{userId}/prayers/{date}": {
+      "schema": "PrayerDay",
+      "description": "Historical prayer completion records"
+    },
+    "/users/{userId}/wakeups/{date}": {
+      "schema": "WakeUpLog",
+      "description": "Historical circadian cycles record"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": "AcademicGoal",
+      "description": "High school to degree specific personal study goals"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": "UserNote",
+      "description": "Syllabus notes and textbook references"
+    }
+  }
+}

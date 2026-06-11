@@ -23,6 +23,11 @@ import Sidebar from "./components/Sidebar";
 import SplashAndLoading from "./components/SplashAndLoading";
 import { motion, AnimatePresence } from "motion/react";
 
+// Firebase integrations
+import { auth, db, googleProvider, handleFirestoreError, OperationType } from "./firebase";
+import { onAuthStateChanged, signInWithPopup, signOut, User as FirebaseUser } from "firebase/auth";
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+
 // Performance-Optimized Lazy Loaded Sub-Components (Code Splitting and Progressive Hydration)
 const PrayerHub = React.lazy(() => import("./components/PrayerHub"));
 const WakeUpHub = React.lazy(() => import("./components/WakeUpHub"));
@@ -192,6 +197,36 @@ const appItemVariants = {
 };
 
 export default function App() {
+  // --- Firebase Cloud Sync State (Pillars 2, 8) ---
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isLoadedFromCloud, setIsLoadedFromCloud] = useState(false);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [allChangesSaved, setAllChangesSaved] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isAuthPending, setIsAuthPending] = useState(false);
+
+  // Onboarding detailed parameters for personalized SaaS dashboard
+  const [academicLevel, setAcademicLevel] = useState(() => {
+    return localStorage.getItem("sf_academic_level") || "Undergraduate";
+  });
+  const [courseDegree, setCourseDegree] = useState(() => {
+    return localStorage.getItem("sf_course_degree") || "";
+  });
+  const [mainSubjects, setMainSubjects] = useState(() => {
+    return localStorage.getItem("sf_main_subjects") || "";
+  });
+  const [studyGoals, setStudyGoals] = useState(() => {
+    return localStorage.getItem("sf_study_goals") || "";
+  });
+
+  // Keep track of parameters locally
+  useEffect(() => {
+    localStorage.setItem("sf_academic_level", academicLevel);
+    localStorage.setItem("sf_course_degree", courseDegree);
+    localStorage.setItem("sf_main_subjects", mainSubjects);
+    localStorage.setItem("sf_study_goals", studyGoals);
+  }, [academicLevel, courseDegree, mainSubjects, studyGoals]);
+
   // --- Persistent User Profile state ---
   const [isInitialLoading, setIsInitialLoading] = useState(() => {
     if (typeof window !== "undefined") {
@@ -450,6 +485,25 @@ export default function App() {
       { day: "Thu", minutes: 0 }, { day: "Fri", minutes: 0 }, { day: "Sat", minutes: 0 }, { day: "Sun", minutes: 0 }
     ];
   });
+
+  const stats = useMemo(() => {
+    const totalMinutes = focusLogs.reduce((acc, log) => acc + (log.minutes || 0), 0);
+    const totalStudyHours = (totalMinutes / 60).toFixed(1);
+    
+    // Total quizzes completed
+    const totalQuizzesCompleted = studyPlans.reduce((acc, plan) => {
+      return acc + (plan.assessmentResult ? 1 : 0);
+    }, 0) + (localStorage.getItem("sf_quizzes_completed_count") ? parseInt(localStorage.getItem("sf_quizzes_completed_count")!, 10) : 3);
+
+    // Total flashcards created
+    const totalFlashcardsCreated = flashcards.length;
+
+    return {
+      totalStudyHours,
+      totalQuizzesCompleted,
+      totalFlashcardsCreated
+    };
+  }, [focusLogs, studyPlans, flashcards]);
 
   // AI generator inputs
   const [plannerSubject, setPlannerSubject] = useState("");
@@ -1301,7 +1355,289 @@ ${computedRankings.map((rk, idx) => `
     }
   };
 
-  const handleOnboardingSubmit = (e: React.FormEvent) => {
+  const loadUserAllData = async (uid: string) => {
+    setIsCloudSyncing(true);
+    try {
+      // 1. Profile Core
+      const userDocSnap = await getDoc(doc(db, "users", uid));
+      if (userDocSnap.exists()) {
+        const uData = userDocSnap.data();
+        setUserName(uData.name || "Alex Mercer");
+        setXp(uData.xp || 0);
+        setCoins(uData.coins || 0);
+        setStreak(uData.streak || 0);
+        setNotificationsEnabled(uData.notificationsEnabled !== false);
+        setTargetHours(uData.targetHours || 4);
+        if (uData.activeDates) setActiveDates(uData.activeDates);
+        if (uData.onboardingLevel) setAcademicLevel(uData.onboardingLevel);
+        if (uData.onboardingCourse) setCourseDegree(uData.onboardingCourse);
+        if (uData.onboardingSubjects) setMainSubjects(uData.onboardingSubjects);
+        if (uData.onboardingGoals) setStudyGoals(uData.onboardingGoals);
+      }
+
+      // 2. Study plans subcollection
+      const plansSnap = await getDocs(collection(db, "users", uid, "plans"));
+      const fetchedPlans: StudyPlan[] = [];
+      plansSnap.forEach(d => fetchedPlans.push(d.data() as StudyPlan));
+      if (fetchedPlans.length > 0) setStudyPlans(fetchedPlans);
+
+      // 3. Flashcards subcollection
+      const fcSnap = await getDocs(collection(db, "users", uid, "flashcards"));
+      const fetchedCards: Flashcard[] = [];
+      fcSnap.forEach(d => fetchedCards.push(d.data() as Flashcard));
+      if (fetchedCards.length > 0) setFlashcards(fetchedCards);
+
+      // 4. Notes subcollection
+      const notesSnap = await getDocs(collection(db, "users", uid, "notes"));
+      const fetchedNotes: UserNote[] = [];
+      notesSnap.forEach(d => fetchedNotes.push(d.data() as UserNote));
+      if (fetchedNotes.length > 0) setUserNotes(fetchedNotes);
+
+      // 5. Goals subcollection
+      const goalsSnap = await getDocs(collection(db, "users", uid, "goals"));
+      const fetchedGoals: Goal[] = [];
+      goalsSnap.forEach(d => fetchedGoals.push(d.data() as Goal));
+      if (fetchedGoals.length > 0) setGoals(fetchedGoals);
+
+      // 6. Prayers subcollection
+      const prayersSnap = await getDocs(collection(db, "users", uid, "prayers"));
+      const fetchedPrayers: PrayerDay[] = [];
+      prayersSnap.forEach(d => fetchedPrayers.push(d.data() as PrayerDay));
+      if (fetchedPrayers.length > 0) setPrayerDays(fetchedPrayers);
+
+      // 7. Wake up logs subcollection
+      const wakeSnap = await getDocs(collection(db, "users", uid, "wakeups"));
+      const fetchedWakes: WakeUpLog[] = [];
+      wakeSnap.forEach(d => fetchedWakes.push(d.data() as WakeUpLog));
+      if (fetchedWakes.length > 0) setWakeUpLogs(fetchedWakes);
+
+      showToast("⚡ Cloud Sync Activated: Restored Workspace Data!");
+    } catch (err) {
+      console.error("Error loading user subcollections:", err);
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const backUpGuestToCloud = async (uid: string) => {
+    try {
+      if (studyPlans.length > 0) {
+        for (const plan of studyPlans) {
+          await setDoc(doc(db, "users", uid, "plans", plan.id), plan);
+        }
+      }
+      if (flashcards.length > 0) {
+        for (const card of flashcards) {
+          await setDoc(doc(db, "users", uid, "flashcards", String(card.id)), card);
+        }
+      }
+      if (userNotes.length > 0) {
+        for (const note of userNotes) {
+          await setDoc(doc(db, "users", uid, "notes", note.id), note);
+        }
+      }
+      if (goals.length > 0) {
+        for (const goal of goals) {
+          await setDoc(doc(db, "users", uid, "goals", goal.id), goal);
+        }
+      }
+    } catch (err) {
+      console.error("Error migrating guest workspace info:", err);
+    }
+  };
+
+  const saveUserProfileToCloud = async () => {
+    if (!auth.currentUser || !isLoadedFromCloud) return;
+    setAllChangesSaved(false);
+    setIsCloudSyncing(true);
+    try {
+      const userDocRef = doc(db, "users", auth.currentUser.uid);
+      await setDoc(userDocRef, {
+        name: userName,
+        xp: xp,
+        coins: coins,
+        streak: streak,
+        activeDates: activeDates || [],
+        notificationsEnabled: notificationsEnabled,
+        targetHours: targetHours,
+        onboardingLevel: academicLevel,
+        onboardingCourse: courseDegree,
+        onboardingSubjects: mainSubjects,
+        onboardingGoals: studyGoals,
+        profilePicUrl: auth.currentUser.photoURL || "",
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setAllChangesSaved(true);
+    } catch (err) {
+      console.error("Error saving profile:", err);
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const syncStateCollectionToCloud = async (collectionName: string, dataArray: any[], idField: string = "id") => {
+    if (!auth.currentUser || !isLoadedFromCloud) return;
+    setAllChangesSaved(false);
+    setIsCloudSyncing(true);
+    try {
+      const uid = auth.currentUser.uid;
+      const currentIds = dataArray.map(item => String(item[idField]));
+
+      const collRef = collection(db, "users", uid, collectionName);
+      const querySnapshot = await getDocs(collRef);
+      
+      for (const docSnap of querySnapshot.docs) {
+        if (!currentIds.includes(docSnap.id)) {
+          await deleteDoc(doc(db, "users", uid, collectionName, docSnap.id));
+        }
+      }
+
+      for (const item of dataArray) {
+        const docId = String(item[idField]);
+        await setDoc(doc(db, "users", uid, collectionName, docId), item);
+      }
+      setAllChangesSaved(true);
+    } catch (err) {
+      console.error(`Error syncing ${collectionName}:`, err);
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsAuthPending(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      showToast(`🔥 Synced with Google Account: ${result.user.displayName}`);
+      setShowAuthModal(false);
+      setCurrentTab("dashboard");
+    } catch (err) {
+      console.error("Google authentication error:", err);
+      showToast("❌ Google Authentication failed. Try again.");
+    } finally {
+      setIsAuthPending(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setFirebaseUser(null);
+      setIsLoadedFromCloud(false);
+      showToast("🔒 Logged out. Cloud data saved.");
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      setFirebaseUser(u);
+      if (u) {
+        setIsCloudSyncing(true);
+        try {
+          const userDocRef = doc(db, "users", u.uid);
+          const snap = await getDoc(userDocRef);
+          
+          if (snap.exists()) {
+            const uData = snap.data();
+            setUserName(uData.name || u.displayName || "Alex Mercer");
+            setXp(uData.xp || 0);
+            setCoins(uData.coins || 0);
+            setStreak(uData.streak || 0);
+            if (uData.activeDates) setActiveDates(uData.activeDates);
+            setNotificationsEnabled(uData.notificationsEnabled !== false);
+            setTargetHours(uData.targetHours || 4);
+            if (uData.onboardingLevel) setAcademicLevel(uData.onboardingLevel);
+            if (uData.onboardingCourse) setCourseDegree(uData.onboardingCourse);
+            if (uData.onboardingSubjects) setMainSubjects(uData.onboardingSubjects);
+            if (uData.onboardingGoals) setStudyGoals(uData.onboardingGoals);
+            
+            await loadUserAllData(u.uid);
+          } else {
+            const tempProfile = {
+              name: u.displayName || userName || "Alex Mercer",
+              email: u.email || "",
+              xp: xp,
+              coins: coins,
+              streak: streak,
+              activeDates: activeDates,
+              notificationsEnabled: notificationsEnabled,
+              targetHours: targetHours,
+              onboardingLevel: academicLevel,
+              onboardingCourse: courseDegree,
+              onboardingSubjects: mainSubjects,
+              onboardingGoals: studyGoals,
+              profilePicUrl: u.photoURL || "",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            await setDoc(userDocRef, tempProfile);
+            setTempName(u.displayName || userName);
+            
+            const hasOnboarded = localStorage.getItem("sf_onboarded") === "true";
+            if (!hasOnboarded) {
+              setShowOnboardingModal(true);
+            }
+            await backUpGuestToCloud(u.uid);
+          }
+          setIsLoadedFromCloud(true);
+        } catch (err) {
+          console.error("Error setting up auth profile: ", err);
+        } finally {
+          setIsCloudSyncing(false);
+        }
+      } else {
+        setIsLoadedFromCloud(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (firebaseUser && isLoadedFromCloud) {
+      saveUserProfileToCloud();
+    }
+  }, [xp, coins, streak, activeDates, notificationsEnabled, targetHours, userName]);
+
+  useEffect(() => {
+    if (firebaseUser && isLoadedFromCloud) {
+      syncStateCollectionToCloud("plans", studyPlans, "id");
+    }
+  }, [studyPlans]);
+
+  useEffect(() => {
+    if (firebaseUser && isLoadedFromCloud) {
+      syncStateCollectionToCloud("flashcards", flashcards, "id");
+    }
+  }, [flashcards]);
+
+  useEffect(() => {
+    if (firebaseUser && isLoadedFromCloud) {
+      syncStateCollectionToCloud("user_notes", userNotes, "id");
+    }
+  }, [userNotes]);
+
+  useEffect(() => {
+    if (firebaseUser && isLoadedFromCloud) {
+      syncStateCollectionToCloud("goals", goals, "id");
+    }
+  }, [goals]);
+
+  useEffect(() => {
+    if (firebaseUser && isLoadedFromCloud) {
+      syncStateCollectionToCloud("prayers", prayerDays, "date");
+    }
+  }, [prayerDays]);
+
+  useEffect(() => {
+    if (firebaseUser && isLoadedFromCloud) {
+      syncStateCollectionToCloud("wakeups", wakeUpLogs, "date");
+    }
+  }, [wakeUpLogs]);
+
+  const handleOnboardingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tempName.trim()) return;
     setUserName(tempName.trim());
@@ -1309,7 +1645,24 @@ ${computedRankings.map((rk, idx) => `
     setShowOnboardingModal(false);
     awardXp(500);
     logActivityToday();
-    showToast(`☀️ Onboarding Complete! Welcome to StudyForge Alex. +500 XP`);
+    
+    if (auth.currentUser) {
+      try {
+        const userDocRef = doc(db, "users", auth.currentUser.uid);
+        await setDoc(userDocRef, {
+          onboardingLevel: academicLevel,
+          onboardingCourse: courseDegree,
+          onboardingSubjects: mainSubjects,
+          onboardingGoals: studyGoals,
+          name: tempName.trim(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Error setting onboarding info:", err);
+      }
+    }
+    
+    showToast(`☀️ Onboarding Complete! Welcome, ${tempName.trim()}. +500 XP`);
   };
 
   // --- Submodule specific bridge handlers ---
@@ -1610,6 +1963,22 @@ ${computedRankings.map((rk, idx) => `
       {/* Main Study Arena */}
       <div className={`flex-1 flex flex-col min-w-0 h-screen ${currentTab === 'coach' ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-16 md:pt-0'}`}>
         
+        {/* Subtle Guest Banner if not logged in */}
+        {!firebaseUser && currentTab !== "landing" && currentTab !== "coach" && (
+          <div className="bg-gradient-to-r from-indigo-950/50 via-violet-950/50 to-blue-950/50 border-b border-indigo-500/15 px-6 py-2.5 flex items-center justify-between text-xs text-indigo-200 shrink-0 sticky top-0 z-30">
+            <div className="flex items-center gap-2">
+              <Cloud className="w-4 h-4 text-indigo-400 animate-pulse" />
+              <span>You are studying in <strong>Guest Mode</strong>. Connect with Google to protect your study streaks, goals, and flashcards forever.</span>
+            </div>
+            <button 
+              onClick={() => setShowAuthModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold px-3 py-1 rounded-lg uppercase tracking-wider text-[10px] transition-all cursor-pointer shrink-0"
+            >
+              Sign Up Free
+            </button>
+          </div>
+        )}
+
         {/* Arena Header */}
         {currentTab !== "coach" && (
           <header className="h-20 shrink-0 flex items-center justify-between px-6 md:px-8 border-b border-white/[0.06] bg-[#09090b]/80 backdrop-blur-md sticky top-0 z-20">
@@ -1619,6 +1988,31 @@ ${computedRankings.map((rk, idx) => `
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Cloud Sync State Selector */}
+              {firebaseUser ? (
+                <div className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/10 px-3 py-1.5 rounded-xl text-emerald-400 font-extrabold text-[10px] uppercase font-mono">
+                  {isCloudSyncing ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" />
+                      <span className="text-cyan-400">Syncing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>Saved</span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center gap-1.5 bg-indigo-500/5 hover:bg-indigo-500/10 border border-indigo-500/10 px-3 py-1.5 rounded-xl text-indigo-300 font-extrabold text-[10px] uppercase font-mono transition-all cursor-pointer"
+                >
+                  <Cloud className="w-3 h-3 animate-pulse" />
+                  <span>Sync Cloud</span>
+                </button>
+              )}
+
               <div className="hidden lg:flex items-center gap-2 bg-emerald-500/5 px-3.5 py-1.5 rounded-xl border border-emerald-500/10">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest font-mono">
@@ -2262,6 +2656,118 @@ ${computedRankings.map((rk, idx) => `
           {/* 2. Scholar Desk dashboard */}
           {currentTab === "dashboard" && (
             <div className="space-y-6 max-w-4xl mx-auto">
+              
+              {/* Premium Dashboard Profile Card (Notion/Linear/Spotify-inspired UI) */}
+              <motion.div 
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55, ease: "easeOut" }}
+                className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-gradient-to-br from-[#0B0C15] via-[#10111E] to-[#0A0A10] p-6 shadow-2xl space-y-6"
+              >
+                {/* Absolute glow effects */}
+                <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-indigo-500/10 blur-[80px] pointer-events-none" />
+                <div className="absolute bottom-0 left-1/3 w-32 h-32 rounded-full bg-purple-500/5 blur-[50px] pointer-events-none" />
+
+                <div className="flex flex-col md:flex-row items-center gap-6 pb-6 border-b border-white/[0.06]">
+                  {/* Profile image with neon rings */}
+                  <div className="relative group shrink-0">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-indigo-500 rounded-full blur opacity-40 group-hover:opacity-70 transition duration-1000 group-hover:duration-200 animate-pulse"></div>
+                    <div className="relative w-20 h-20 rounded-full bg-zinc-900 border border-white/10 flex items-center justify-center overflow-hidden">
+                      {auth.currentUser?.photoURL ? (
+                        <img 
+                          src={auth.currentUser.photoURL} 
+                          alt={userName} 
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white text-2xl font-black">
+                          {userName.substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    {firebaseUser && (
+                      <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-[#10111E] rounded-full animate-pulse" title="Cloud Synced" />
+                    )}
+                  </div>
+
+                  {/* Bio & levels */}
+                  <div className="text-center md:text-left space-y-2 flex-1">
+                    <div className="flex flex-col md:flex-row md:items-center justify-center md:justify-start gap-2.5">
+                      <h2 className="text-xl font-black text-white tracking-tight">{userName}</h2>
+                      {firebaseUser ? (
+                        <span className="inline-flex self-center md:self-auto items-center gap-1 px-2.5 py-0.5 bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 rounded-full text-[9.5px] font-black uppercase tracking-wider font-mono">
+                          <Check className="w-2.5 h-2.5 text-emerald-400" /> PREMIUM SYNCED
+                        </span>
+                      ) : (
+                        <span className="inline-flex self-center md:self-auto items-center gap-1 px-2.5 py-0.5 bg-zinc-500/10 text-zinc-400 border border-white/5 rounded-full text-[9.5px] font-black uppercase tracking-wider font-mono">
+                          GUEST MODE
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 truncate max-w-sm">
+                      {auth.currentUser?.email || "Local Guest Workspace — Progress persists temporarily"}
+                    </p>
+
+                    {/* XP Level progression indicator */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between items-center text-[10px] font-mono uppercase tracking-wider font-bold">
+                        <span className="text-slate-500">LEVEL {Math.floor(xp / 500) + 1} Academic</span>
+                        <span className="text-indigo-400">{(xp % 500)} / 500 XP to Next Level</span>
+                      </div>
+                      <div className="w-full bg-white/[0.04] h-2 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-cyan-400 via-indigo-500 to-purple-600 h-full rounded-full transition-all duration-1000" 
+                          style={{ width: `${(xp % 500) / 5}%` }} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Logout / Switch Account button */}
+                  <div className="shrink-0 flex gap-2">
+                    {firebaseUser ? (
+                      <button 
+                        onClick={handleLogout}
+                        className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => setShowAuthModal(true)}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Cloud className="w-3.5 h-3.5 animate-pulse" /> Link Account
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick stats grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                  <div className="p-4 rounded-2xl bg-white/[0.01] border border-white/5 text-center sm:text-left space-y-1 hover:border-orange-500/25 transition-all">
+                    <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-500 font-mono">Study Streak</span>
+                    <p className="text-lg font-black text-orange-400 flex items-center justify-center sm:justify-start gap-1">{streak} <Flame className="w-4 h-4 text-orange-400 fill-orange-400/20" /></p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.01] border border-white/5 text-center sm:text-left space-y-1 hover:border-indigo-500/25 transition-all">
+                    <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-500 font-mono">Total Study Hours</span>
+                    <p className="text-lg font-black text-indigo-400">{stats.totalStudyHours}h</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.01] border border-white/5 text-center sm:text-left space-y-1 hover:border-cyan-500/25 transition-all">
+                    <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-500 font-mono">Quizzes Smashed</span>
+                    <p className="text-lg font-black text-cyan-400">{stats.totalQuizzesCompleted}</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white/[0.01] border border-white/5 text-center sm:text-left space-y-1 hover:border-purple-500/25 transition-all">
+                    <span className="text-[9px] uppercase font-bold tracking-widest text-zinc-500 font-mono">Flashcards Built</span>
+                    <p className="text-lg font-black text-purple-400">{stats.totalFlashcardsCreated}</p>
+                  </div>
+                </div>
+              </motion.div>
+
               <div className="flex justify-between items-center bg-white/[0.01] p-4 rounded-2xl border border-white/5">
                 <div>
                   <h3 className="text-lg font-black text-slate-100">Preserved Syllabi Matrix</h3>
@@ -2842,34 +3348,201 @@ ${computedRankings.map((rk, idx) => `
 
       {/* Onboarding welcome modal */}
       {showOnboardingModal && (
-        <div className="fixed inset-0 bg-[#020203]/95 backdrop-blur-xl z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleOnboardingSubmit} className="bg-[#09090C] border border-white/10 p-8 rounded-3xl max-w-md w-full space-y-5 shadow-2xl">
+        <div className="fixed inset-0 bg-[#020203]/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <form onSubmit={handleOnboardingSubmit} className="bg-[#09090C] border border-white/10 p-8 rounded-3xl max-w-md w-full space-y-5 shadow-2xl my-8">
             <div className="text-center space-y-2">
-              <div className="w-12 h-12 bg-blue-600/10 rounded-2xl flex items-center justify-center text-blue-500 mx-auto animate-pulse">
+              <div className="w-12 h-12 bg-indigo-600/10 rounded-2xl flex items-center justify-center text-indigo-500 mx-auto animate-pulse">
                 <Sparkles className="w-6 h-6" />
               </div>
               <h3 className="text-xl font-black text-white">Welcome, Scholar!</h3>
-              <p className="text-slate-400 text-xs">Register your academic persona handle to configure baseline cognitive parameters.</p>
+              <p className="text-slate-400 text-xs">Configure your scholastic dashboard to start your personalized learning journey.</p>
             </div>
 
-            <div className="space-y-1.5 text-xs text-slate-400">
-              <label>Scholar Name</label>
-              <input
-                type="text"
-                required
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                placeholder="e.g. Alex Mercer"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-700 outline-none focus:border-blue-500/50"
-              />
+            <div className="space-y-4">
+              <div className="space-y-1.5 text-xs text-slate-400">
+                <label className="font-bold text-slate-300">Scholar Name</label>
+                <input
+                  type="text"
+                  required
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  placeholder="e.g. Alex Mercer"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-700 outline-none focus:border-indigo-500/50"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-400">
+                <label className="font-bold text-slate-300">Academic Level</label>
+                <select
+                  value={academicLevel}
+                  onChange={(e) => setAcademicLevel(e.target.value)}
+                  className="w-full bg-[#0E0F14] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-indigo-500/50"
+                >
+                  <option value="High School">High School</option>
+                  <option value="Undergraduate">Undergraduate</option>
+                  <option value="Postgraduate">Postgraduate</option>
+                  <option value="Ph.D. Scholar">Ph.D. Scholar</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-400">
+                <label className="font-bold text-slate-300">Course / Degree</label>
+                <input
+                  type="text"
+                  required
+                  value={courseDegree}
+                  onChange={(e) => setCourseDegree(e.target.value)}
+                  placeholder="e.g. B.S. Computer Science"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-700 outline-none focus:border-indigo-500/50"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-400">
+                <label className="font-bold text-slate-300">Main Subjects</label>
+                <input
+                  type="text"
+                  required
+                  value={mainSubjects}
+                  onChange={(e) => setMainSubjects(e.target.value)}
+                  placeholder="e.g. Quantum Computing, AI, Discrete Math"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-700 outline-none focus:border-indigo-500/50"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-xs text-slate-400">
+                <label className="font-bold text-slate-300">Study Goals</label>
+                <input
+                  type="text"
+                  required
+                  value={studyGoals}
+                  onChange={(e) => setStudyGoals(e.target.value)}
+                  placeholder="e.g. Ace midterms, publish AI research"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-slate-700 outline-none focus:border-indigo-500/50"
+                />
+              </div>
             </div>
 
-            <button type="submit" className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-black uppercase text-white shadow-xl shadow-blue-600/10 transition-all">
+            <button type="submit" className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-black uppercase text-white shadow-xl shadow-indigo-600/10 transition-all cursor-pointer">
               Initiate Cognitive Forge Engine (+500 XP)
             </button>
           </form>
         </div>
       )}
+
+      {/* Premium Login / Authentic Sign-In modal (Duolingo/Notion SaaS styling) */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <div className="fixed inset-0 bg-[#020203]/90 backdrop-blur-2xl z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className="bg-[#09090C] border border-white/10 p-8 rounded-3xl max-w-md w-full space-y-6 shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-36 h-36 rounded-full bg-indigo-600/10 blur-[40px] pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-36 h-36 rounded-full bg-purple-600/10 blur-[40px] pointer-events-none" />
+
+              <div className="flex justify-between items-start">
+                <div className="w-10 h-10 bg-indigo-600/15 border border-indigo-500/25 rounded-2xl flex items-center justify-center text-indigo-400">
+                  <Sparkles className="w-5 h-5 animate-spin-slow" />
+                </div>
+                <button 
+                  onClick={() => setShowAuthModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white flex items-center justify-center transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5 text-center">
+                <h3 className="text-xl font-black text-white tracking-tight">Welcome to StudyForge AI</h3>
+                <p className="text-slate-400 text-xs">
+                  Save your progress and continue your learning journey across all devices seamlessly.
+                </p>
+              </div>
+
+              {/* Premium Benefits List */}
+              <div className="bg-white/[0.01] border border-white/[0.04] p-4 rounded-2xl space-y-2.5">
+                <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider block">Unlock Premium Syncing</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-300 font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Save Study Plans</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Save AI Chats</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Save Flashcards</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Save Quiz Results</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Save Focus Logs</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Save XP Points</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Save Streaks</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span>Sync Across devices</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons list */}
+              <div className="space-y-3">
+                <button 
+                  onClick={handleGoogleSignIn}
+                  disabled={isAuthPending}
+                  type="button"
+                  className="w-full h-12 bg-white text-black hover:bg-slate-100 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5 active:scale-95 disabled:opacity-50 cursor-pointer text-center"
+                >
+                  {isAuthPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-black" />
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                      </svg>
+                      <span>Continue with Google</span>
+                    </>
+                  )}
+                </button>
+
+                <button 
+                  onClick={() => {
+                    setShowAuthModal(false);
+                    showToast("💡 Entered Workspace as Guest. Register profile to sync anytime!");
+                  }}
+                  type="button"
+                  className="w-full h-12 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-black uppercase tracking-wider border border-white/5 transition-all flex items-center justify-center cursor-pointer"
+                >
+                  Continue as Guest
+                </button>
+              </div>
+
+              <p className="text-[10px] text-center text-slate-500 font-medium">
+                By continuing, you agree to enable real-time encrypted study telemetry and automated cloud progress backups.
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
         </motion.div>
       )}
